@@ -29,6 +29,8 @@ class connect_twitch(socket):
         self._port = 6667
         self._passString = f"PASS " + self.oauth + f"\n"
         self._nameString = f"NICK " + self.nickname + f"\n"
+
+        self.log_dir = 'logs'
         
 
     def _join_channels(self, channels):
@@ -46,7 +48,7 @@ class connect_twitch(socket):
             
             joinString = f"JOIN #" + channel.lower() + f"\n"
             self._sockets[channel].send(joinString.encode('utf-8'))
-            self._loggers[channel] = utils.setup_loggers(channel, channel + '.log')
+            self._loggers[channel] = utils.setup_loggers(channel, self.log_dir + '/' + channel + '.log')
             
             self.joined.append(channel)
         
@@ -165,7 +167,7 @@ class connect_twitch(socket):
             if not channel.endswith(".log"):
                 filename = channel + ".log"
             lines = []
-            with open(filename) as f:
+            with open(self.log_dir + '/' + filename) as f:
                 for line in f:
                     if line not in lines:
                         lines.append(line)
@@ -181,7 +183,7 @@ class connect_twitch(socket):
                 elif count == 0:
                     pass
                 elif count == 1 and not entryInfo:
-                    if line.endswith('\\r\\n\'\n'):
+                    if line.endswith('\\r\\n\'\n') or line.endswith('\\r\\n\"\n'):
                         split_messages.append(line[:-6])
                     else:
                         split_messages.append(line)     
@@ -198,12 +200,17 @@ class connect_twitch(socket):
                 row = {}
                 
                 # Parse message text
-                hash_channel_point = message.find("PRIVMSG #" + channel)
+                hash_channel_point = message.find("PRIVMSG #" + channel.lower())
                 slice_ = message[hash_channel_point:]
                 
                 slice_point = slice_.find(":") + 1
                 message_text = slice_[slice_point:]
-                decoded_txt = decode_escapes(message_text).encode('latin1').decode('utf-8')
+                try:
+                    decoded_txt = decode_escapes(message_text).encode('latin1').decode('utf-8')
+                except UnicodeDecodeError:
+                    print('unicode decode error occurred on message: ' + message_text)
+                    continue
+
                 row['text'] = decoded_txt
                 
                 # Parse username
@@ -226,7 +233,7 @@ class connect_twitch(socket):
             
             # Write data to file
             if len(data) > 0:
-                pd.DataFrame(data).to_csv(channel + ".csv", index = False)
+                pd.DataFrame(data).to_csv(self.log_dir + '/' + channel + ".csv", index = False)
                         
     def adj_matrix(self, channels = [], weighted = True, matrix_name = None, 
                      ignore_bots = True):
@@ -268,7 +275,7 @@ class connect_twitch(socket):
             else:
                 filename = channel
             try:    
-                df = pd.read_csv(filename)
+                df = pd.read_csv(self.log_dir + '/' + filename)
                 users[channel] = df.username.unique()
             except:
                 print("Couldn't find %s" % filename)
@@ -294,8 +301,8 @@ class connect_twitch(socket):
         if matrix_name != None:
             if not matrix_name.endswith(".csv"):
                 matrix_name = matrix_name + ".csv"
-            matrix.to_csv(matrix_name)
+            matrix.to_csv(self.log_dir + '/' + matrix_name)
         else:
-            matrix.to_csv("twitch_association_matrix.csv")
+            matrix.to_csv(self.log_dir + '/' + "twitch_association_matrix.csv")
 
         
