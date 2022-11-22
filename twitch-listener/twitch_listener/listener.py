@@ -41,16 +41,18 @@ class connect_twitch(socket):
         
         # Establish socket connections
         for channel in channels:
-            self._sockets[channel] = socket()
-            self._sockets[channel].connect((self._server, self._port))
-            self._sockets[channel].send(self._passString.encode('utf-8'))
-            self._sockets[channel].send(self._nameString.encode('utf-8'))
-            
-            joinString = f"JOIN #" + channel.lower() + f"\n"
-            self._sockets[channel].send(joinString.encode('utf-8'))
+            self.connect_channel(channel)
             self._loggers[channel] = utils.setup_loggers(channel, self.log_dir + '/' + channel + '.log')
             
             self.joined.append(channel)
+
+    def connect_channel(self, channel):
+        self._sockets[channel] = socket()
+        self._sockets[channel].connect((self._server, self._port))
+        self._sockets[channel].send(self._passString.encode('utf-8'))
+        self._sockets[channel].send(self._nameString.encode('utf-8'))
+        joinString = f"JOIN #" + channel.lower() + f"\n"
+        self._sockets[channel].send(joinString.encode('utf-8'))
         
     def listen(self, channels, duration, debug = False):
 
@@ -74,11 +76,18 @@ class connect_twitch(socket):
         # Collect data while duration not exceeded and channels are live
         while (time() - startTime) < duration: 
             now = time() # Track loop time for adaptive rate limiting
-            ready_socks,_,_ = select.select(self._sockets.values(), [], [], 1)
             for channel in self.joined:
+                ready_socks, _, _ = select.select(self._sockets.values(), [], [], 1)
                 sock = self._sockets[channel]
                 if sock in ready_socks:
-                    response = sock.recv(16384)
+                    try:
+                        response = sock.recv(16384)
+                    except ConnectionResetError:
+                        print('ConnectionResetError on channel ', channel, ', retrying')
+                        self._sockets[channel].close()
+                        self.connect_channel(channel)
+                        continue
+
                     if b"PING :tmi.twitch.tv\r\n" in response:
                         sock.send("PONG :tmi.twitch.tv\r\n".encode("utf-8"))
                         if debug:
@@ -99,6 +108,8 @@ class connect_twitch(socket):
         # Close sockets once not collecting data
         for channel in self.joined:
             self._sockets[channel].close()
+        # for s in self._sockets:
+        #     self.sockets[s].close()
              
     def _split_line(self, line, firstLine = False):
         

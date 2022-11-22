@@ -6,10 +6,9 @@ bot = listener.connect_twitch('mrbelms',
                              'ttv_listener')
 
 # List of channels to connect to
-channels_to_listen_to = ['xQc', 'KaiCenat', 'shroud', 'Amouranth', 'AdinRoss', 'loltyler1', 'Wirtual', 'Pestily', 'HasanAbi', 'moistcr1tikal', 'erobb221', 'tarik', 'pokimane', 'sodapoppin', 'NICKMERCS', 'summit1g', 'Loserfruit', 'LIRIK', 'Anomaly', 'Fextralife', 'Tfue', 'Castro_1021', 'Heelmike', 'tommyinnit']
-#channels_to_listen_to = ['loltyler1', 'Jerma985', 'GMHikaru', 'Pestily', 'Anomaly', 'Tfue', 'A_Seagull', 'pokimane', 'Amouranth', 'pokelawls', 'summit1g', 'shroud', 'CodeMiko']
+channels_to_listen_to = ['xQc', 'KaiCenat', 'shroud', 'Amouranth', 'AdinRoss', 'loltyler1', 'Wirtual', 'Pestily', 'HasanAbi', 'moistcr1tikal', 'tarik', 'pokimane', 'sodapoppin', 'NICKMERCS', 'summit1g', 'Loserfruit', 'LIRIK', 'Tfue', 'Jerma985', 'Alinity']
 # Scrape live chat data into raw log files. (Duration is seconds)
-bot.listen(channels_to_listen_to, duration=7200, debug=True)
+bot.listen(channels_to_listen_to, duration=5000, debug=True)
 
 # Convert log files into .CSV format
 bot.parse_logs(timestamp=True, remove_bots=True)
