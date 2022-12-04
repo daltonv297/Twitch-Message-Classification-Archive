@@ -44,7 +44,7 @@ def load_streamer_chat(streamer):
             punct_count_list[i] = text.count(string.punctuation[i])
         return punct_count_list
 
-    csv_path = '../twitch-listener/logs/'+ streamer +'.csv'
+    csv_path = '../../twitch-listener/logs/'+ streamer +'.csv'
     df = pd.read_csv(csv_path) # Reads in text, username, timestamp (all strings)
 
     # Clean data
@@ -58,7 +58,6 @@ def load_streamer_chat(streamer):
     df["timestamp"] = df["timestamp"].apply(lambda x: datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S,%f')) # Converts timestamp string to timestamp datetime objects
     df["channel_name"] = len(df) * [streamer]
 
-    print(df.head(30))
     return df
     
 
