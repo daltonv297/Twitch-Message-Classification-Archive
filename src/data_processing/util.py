@@ -6,7 +6,7 @@ import json
 import datetime
 import string
 
-BOT_LIST = ['moobot' 'nightbot', 'ohbot',
+BOT_LIST = ['moobot', 'nightbot', 'ohbot',
                         'deepbot', 'ankhbot', 'vivbot',
                         'wizebot', 'coebot', 'phantombot',
                         'xanbot', 'hnlbot', 'streamlabs',
