@@ -24,8 +24,6 @@ def get_words(chat):
         a list of normalized words 
     """
     return chat.strip().lower().split()
-
-
 def create_dictionary(chat_log):
     """ Creates a dictionary mapping words to integer indices, for a given chat log 
     Just like in PS2 spam.py implementation, we also reduce to words that appear over
@@ -55,9 +53,6 @@ def create_dictionary(chat_log):
             index += 1
 
     return word_to_index
-
-
-
 def transform_text(messages, word_dictionary):
     """Transform a list of text messages into a numpy array for further processing.
 
@@ -89,8 +84,6 @@ def transform_text(messages, word_dictionary):
 
     return num_appearances_array
     # *** END CODE HERE ***
-
-
 def fit_naive_bayes_model(matrix, labels):
     """Fit a naive bayes model.
 
@@ -136,8 +129,6 @@ def fit_naive_bayes_model(matrix, labels):
         
     return phi_y, phi_y1_array, phi_y0_array
     # *** END CODE HERE ***
-
-
 def predict_from_naive_bayes_model(model, matrix):
     """Use a Naive Bayes model to compute predictions for a target matrix.
 

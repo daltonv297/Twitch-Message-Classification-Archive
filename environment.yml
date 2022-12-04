@@ -1,0 +1,14 @@
+name: cs229-proj
+channels:
+  - defaults
+dependencies:
+  - matplotlib
+  - numpy
+  - pip
+  - python=3.9
+  - scipy
+  - pillow
+  - pandas
+  - transformers
+  - pytorch
+  - sentence-transformers
