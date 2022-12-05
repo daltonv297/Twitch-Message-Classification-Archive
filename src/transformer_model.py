@@ -3,6 +3,7 @@ import json
 import numpy as np
 import pandas as pd
 import torch
+from torch.utils.data import DataLoader
 from sentence_transformers import SentenceTransformer, util, InputExample, losses
 
 STREAMERS = ['AdinRoss', 'Alinity', 'Amouranth', 'HasanAbi', 'Jerma985', 'KaiCenat', 'LIRIK', 'loltyler1', 'Loserfruit',
@@ -93,12 +94,11 @@ def csv_to_inputexample():
     # Go through each streamer csv and create InputExample pairs
     for streamer in STREAMERS:
         streamer_csv = path2inputexamples + streamer + ".csv"
-        df = pd.read_csv(streamer_csv)
+        df = pd.read_csv(streamer_csv, keep_default_na=False)
         
         for row in df.itertuples(index=True, name='Pandas'):
             message1 = getattr(row, 'message1')
             message2 = getattr(row, 'message2')
-            print([message1, message2])
             label = getattr(row, "similarity_score")
             train_examples.append(InputExample(texts=[message1, message2], label=label))
     
@@ -120,11 +120,14 @@ def main():
     print('Loading pre-trained model')
     model = SentenceTransformer('all-MiniLM-L6-v2')
 
+    print("Creating inputexample training data")
     train_examples= csv_to_inputexample()
-    train_dataloader = torch.utils.data.Dataloader(train_examples, shuffle=True, batch_size = BATCH_SIZE)
+
+    train_dataloader = DataLoader(train_examples, shuffle=True, batch_size = BATCH_SIZE)
     train_loss = losses.CosineSimilarityLoss(model)
     
     # The TUNING
+    print('Training data loader')
     model.fit(train_objectives =[(train_dataloader, train_loss)], epochs = NUM_EPOCHS, warmup_steps = NUM_WARMUP)
 
 if __name__ == "__main__":
