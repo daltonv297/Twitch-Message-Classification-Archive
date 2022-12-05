@@ -48,7 +48,7 @@ def load_streamer_chat(streamer):
     df = pd.read_csv(csv_path) # Reads in text, username, timestamp (all strings)
 
     # Clean data
-    # TODO: Filter bots, filter links
+    # TODO: Filter links
     df = df.dropna()
     df = df[~df["username"].isin(BOT_LIST)]
     df["is_all_caps"] = df.apply(lambda row: row.text.isupper(), axis=1)
@@ -60,22 +60,60 @@ def load_streamer_chat(streamer):
 
     return df
     
+def create_input_example_pairs(streamer_df, list_of_other_dfs):
+    """ Returns a list of close input example pairs for a given streamer
+    
+    """
+    def similarity_score(timestamp1, timestamp2):
+        difference = timestamp1 - timestamp2
+        if difference.seconds < 3:
+            return 0.95
+        if difference.seconds < 5:
+            return 0.8
+        if difference.seconds < 20:
+            return 0.6
+        return 0.5
+
+    WINDOW_SIZE = 5
+    NUM_ADVERSARIAL = 5
+    ADVERSARIAL_SCORE = 0.1
+    SEED = 229
+    np.random.seed(SEED)
+    list_of_pairs = []
+
+    streamer_df["timestamp"] = streamer_df["timestamp"].apply(lambda x: datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S.%f')) # Converts timestamp string to timestamp datetime objects
+    
+    for row in streamer_df.index:
+        s1 = streamer_df['text'][row]
+        # Create close input pairs
+        ts1 = streamer_df['timestamp'][row]
+        if row < len(streamer_df)-WINDOW_SIZE:
+            for i in range(1, WINDOW_SIZE):
+                s2 = streamer_df['text'][row + i]
+                ts2 = streamer_df['timestamp'][row + i]
+                list_of_pairs.append(([s1, s2], similarity_score(ts1, ts2)))
+
+        # Create far input pairs
+        other_random_streamers = np.random.randint(len(list_of_other_dfs), size = NUM_ADVERSARIAL)
+        for j in range(NUM_ADVERSARIAL):
+            other_streamer_df = list_of_other_dfs[other_random_streamers[j]]
+            random_message = other_streamer_df['text'][np.random.randint(len(other_streamer_df))]
+            list_of_pairs.append( ([s1, random_message], ADVERSARIAL_SCORE) )
+    
+    return list_of_pairs 
 
 def load_messages(streamer_list, test_ratio):
-    """Returns a list of messages from streamers in streamer_list, as well as labels
+    """Returns a list of dataframes from streamers in streamer_list
 
     Args:
         streamer_list: a list of strings representing streamer names
         train_ratio: integer specifiying the percentage of data to assign to test data
 
     Returns:
-        all_messages: a list of all messages from streamer_list
-        all_labels: a list of corresponding labels
+        list_of_dataframes: a list of dataframes of messages from streamer_list
     """
 
     list_of_dataframes = []
-    #train_dataframes = []
-    #test_dataframes = []
 
     for streamer in streamer_list:
         dataframe = load_streamer_chat(streamer)
