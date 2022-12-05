@@ -29,7 +29,7 @@ def create_input_example_pairs(list_of_dfs):
         # Save file to csv
         with open(save_path+STREAMERS[i]+ '.csv','w', encoding = "utf-8") as out:
             csv_out=csv.writer(out)
-            csv_out.writerow(['sentence_pair','similarity_score'])
+            csv_out.writerow(['message1','message2','similarity_score'])
             for row in list_of_pairs_to_append:
                 csv_out.writerow(row)
 

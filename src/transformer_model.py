@@ -96,16 +96,21 @@ def csv_to_inputexample():
         df = pd.read_csv(streamer_csv)
         
         for row in df.itertuples(index=True, name='Pandas'):
-            messages = json.loads(getattr(row, "sentence_pair"))
-            print(messages)
+            message1 = getattr(row, 'message1')
+            message2 = getattr(row, 'message2')
+            print([message1, message2])
             label = getattr(row, "similarity_score")
-            train_examples.append(InputExample(texts=messages, label=label))
+            train_examples.append(InputExample(texts=[message1, message2], label=label))
     
     # Split into train, test, valid
         
     return train_examples
     
 def main():
+    # setting device on GPU if available, else CPU
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print('Using device:', device)
+    print() 
     # test_adin()
     # test_combined()
     BATCH_SIZE = 16

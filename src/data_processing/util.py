@@ -91,14 +91,14 @@ def create_input_example_pairs(streamer_df, list_of_other_dfs):
             for i in range(1, WINDOW_SIZE):
                 s2 = streamer_df['text'][row + i]
                 ts2 = streamer_df['timestamp'][row + i]
-                list_of_pairs.append(([s1, s2], similarity_score(ts1, ts2)))
+                list_of_pairs.append((s1, s2, similarity_score(ts1, ts2)))
 
         # Create far input pairs
         other_random_streamers = np.random.randint(len(list_of_other_dfs), size = NUM_ADVERSARIAL)
         for j in range(NUM_ADVERSARIAL):
             other_streamer_df = list_of_other_dfs[other_random_streamers[j]]
             random_message = other_streamer_df['text'][np.random.randint(len(other_streamer_df))]
-            list_of_pairs.append( ([s1, random_message], ADVERSARIAL_SCORE) )
+            list_of_pairs.append( (s1, random_message, ADVERSARIAL_SCORE) )
     
     return list_of_pairs 
 
