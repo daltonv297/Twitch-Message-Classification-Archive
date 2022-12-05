@@ -3,9 +3,9 @@ import util
 import numpy as np
 import pandas as pd
 import os
+from sklearn.model_selection import train_test_split
 
-STREAMERS = ['AdinRoss', 'Alinity', 'Amouranth', 'HasanAbi', 'Jerma985', 'KaiCenat', 'LIRIK', 'loltyler1', 'Loserfruit',
-'LVNDMARK', 'moistcr1tikal', 'NICKMERCS', 'Pestily', 'pokimane', 'shroud', 'sodapoppin', 'summit1g', 'tarik',
+STREAMERS = ['AdinRoss', 'Alinity', 'Amouranth', 'HasanAbi', 'Jerma985', 'KaiCenat', 'LIRIK', 'loltyler1', 'Loserfruit', 'moistcr1tikal', 'NICKMERCS', 'Pestily', 'pokimane', 'shroud', 'sodapoppin', 'summit1g', 'tarik',
 'Tfue', 'Wirtual', 'xQc']
 
 def create_input_example_pairs(list_of_dfs):
@@ -27,16 +27,13 @@ def create_input_example_pairs(list_of_dfs):
         print('Finished creating pairs for '+STREAMERS[i])
 
         # Save file to csv
-        with open(save_path+STREAMERS[i]+ '.csv','w') as out:
+        with open(save_path+STREAMERS[i]+ '.csv','w', encoding = "utf-8") as out:
             csv_out=csv.writer(out)
-            csv_out.writerow(['sentence_pair','similarity_Score'])
+            csv_out.writerow(['message1','message2','similarity_score'])
             for row in list_of_pairs_to_append:
                 csv_out.writerow(row)
 
         list_of_pairs.append(list_of_pairs_to_append)
-         
-    #print(list_of_pairs)
-
     
     return list_of_pairs
 
@@ -46,22 +43,34 @@ def create_list_of_dataframes():
     # Save path
     save_path = 'cleaned_data/'
 
+    list_of_train_df = []
+    list_of_test_df = []
+    list_of_valid_df = []
+
     # Save each dataframe as a csv file
+    # Additionally, split each dataframe into a 80/10/10 split for train test valid
     for i in range(len(list_of_dataframes)):
         streamer_name = STREAMERS[i]
         list_of_dataframes[i].to_csv(save_path + streamer_name + '.csv')
+        
+        train, test = train_test_split(list_of_dataframes[i], test_size = 0.2)
+        test, val = train_test_split(test, test_size = 0.5)
+        list_of_train_df.append(train)
+        list_of_test_df.append(test)
+        list_of_valid_df.append(val)
 
     # Save combined dataframe as a csv file
     combined_dataframe = pd.concat(list_of_dataframes)
     combined_dataframe.to_csv(save_path + 'combined_dataframe.csv')
 
-    # Split combined into test and train sets
-    df_comb_train = combined_dataframe.sample(frac=0.9, random_state=7)
-    df_comb_test = combined_dataframe[~combined_dataframe.index.isin(df_comb_train.index)]
+    # Save combined test, train, valid to a csv file
+    df_comb_train = pd.concat(list_of_train_df)
+    df_comb_test = pd.concat(list_of_test_df)
+    df_comb_valid = pd.concat(list_of_valid_df)
 
     df_comb_train.to_csv(save_path + "combined_train.csv")
     df_comb_test.to_csv(save_path + "combined_test.csv")
-
+    df_comb_valid.to_csv(save_path + "combined_valid.csv")
 
     return list_of_dataframes
 

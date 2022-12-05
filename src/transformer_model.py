@@ -1,17 +1,22 @@
 import csv
+import json
 import numpy as np
 import pandas as pd
 import torch
-from sentence_transformers import SentenceTransformer, util
+from torch.utils.data import DataLoader
+from sentence_transformers import SentenceTransformer, util, InputExample, losses, models
+from scipy.stats import multivariate_normal
 
 STREAMERS = ['AdinRoss', 'Alinity', 'Amouranth', 'HasanAbi', 'Jerma985', 'KaiCenat', 'LIRIK', 'loltyler1', 'Loserfruit',
-'LVNDMARK', 'moistcr1tikal', 'NICKMERCS', 'Pestily', 'pokimane', 'shroud', 'sodapoppin', 'summit1g', 'tarik',
+ 'moistcr1tikal', 'NICKMERCS', 'Pestily', 'pokimane', 'shroud', 'sodapoppin', 'summit1g', 'tarik',
 'Tfue', 'Wirtual', 'xQc']
+
+
 
 def test_adin():
 
     # Load the SentenceTransformer model
-    model = SentenceTransformer('all-MiniLM-L6-v2')
+    model = SentenceTransformer('adin_5000')
 
     # Test on AdinRoss chat
     path2csv = 'data_processing/cleaned_data/AdinRoss.csv'
@@ -40,12 +45,6 @@ def test_adin():
 
         # Print message and streamer name
         print(streamer_name, ": ", message_text, "(Score: {:.4f})".format(score))
-
-    paraphrases = util.paraphrase_mining(model, messages)
-
-    for paraphrase in paraphrases[0:10]:
-        score, i, j = paraphrase
-        print("{} \t\t {} \t\t Score: {:.4f}".format(messages[i], messages[j], score))
 
 def test_combined():
     # Load the SentenceTransformer model
@@ -82,10 +81,89 @@ def test_combined():
         # Print message and streamer name
         print(streamer_name, ": ", message_text, "(Score: {:.4f})".format(score))
 
-def main():
-    test_adin()
-    # test_combined()
 
+def csv_to_inputexample():
+    path2inputexamples = "./data_processing/input_example_pairs/"
+    train_examples = [] # List of InputExample objects
+
+    # Go through each streamer csv and create InputExample pairs
+    for streamer in STREAMERS:
+        streamer_csv = path2inputexamples + streamer + ".csv"
+        df = pd.read_csv(streamer_csv, keep_default_na=False)
+        
+        for row in df.itertuples(index=True, name='Pandas'):
+            message1 = getattr(row, 'message1')
+            message2 = getattr(row, 'message2')
+            label = getattr(row, "similarity_score")
+            train_examples.append(InputExample(texts=[message1, message2], label=label))
+    
+    # Split into train, test, valid
+        
+    return train_examples
+    
+def train_model():
+    # setting device on GPU if available, else CPU
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print('Using device:', device)
+    print() 
+    # test_adin()
+    # test_combined()
+    BATCH_SIZE = 16
+    NUM_EPOCHS = 1
+    NUM_WARMUP = 100
+
+    # print('Loading pre-trained model')
+    # model = SentenceTransformer('all-MiniLM-L6-v2')
+
+    # Creating scratch model
+    print("Creating model from scratch")
+    word_embedding_model = models.Transformer('bert-base-uncased', max_seq_length=256)
+    pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension())
+    model = SentenceTransformer(modules=[word_embedding_model, pooling_model])
+
+    print("Creating inputexample training data")
+    train_examples= csv_to_inputexample()
+    train_dataloader = DataLoader(train_examples[:5000], shuffle=True, batch_size = BATCH_SIZE)
+    #train_loss = losses.CosineSimilarityLoss(model)
+    train_loss = losses.MultipleNegativeRanj
+
+    # The TUNING
+    print('Training data loader')
+    model.fit(train_objectives =[(train_dataloader, train_loss)], epochs = NUM_EPOCHS, warmup_steps = NUM_WARMUP)
+
+    # Save model
+    model.save(path='./trained_models/adin_5000', model_name='adin_5000')
+
+def main():
+    # train_model()
+
+    model = SentenceTransformer("./trained_models/adin_5000")
+    # Test on AdinRoss chat
+    path2csv = 'data_processing/cleaned_data/AdinRoss.csv'
+    df = pd.read_csv(path2csv, keep_default_na=False)
+    test_messages = df['text'].tolist()[5001:5100]
+    print(test_messages)
+
+    # Encode messages    
+    embeddings = model.encode(test_messages, convert_to_tensor=True)
+
+    # Test message
+    test_message = 'ferraris'
+    print(test_message)
+    test_embedding = model.encode(test_message, convert_to_tensor=True)
+
+    embeddings = embeddings.cpu().numpy()
+    test_embedding = test_embedding.cpu().numpy()
+
+    n,d = embeddings.shape
+    mean = np.mean(embeddings, axis=0)
+    sigma = np.cov(embeddings.T)
+    print(np.linalg.norm(test_embedding))
+    print(mean.shape)
+
+    probability = multivariate_normal.pdf(test_embedding, mean, sigma)
+
+    print("Probability", probability)
 
 if __name__ == "__main__":
     main()
