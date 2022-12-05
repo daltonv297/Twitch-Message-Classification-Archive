@@ -27,9 +27,9 @@ def create_input_example_pairs(list_of_dfs):
         print('Finished creating pairs for '+STREAMERS[i])
 
         # Save file to csv
-        with open(save_path+STREAMERS[i]+ '.csv','w') as out:
+        with open(save_path+STREAMERS[i]+ '.csv','w', encoding = "utf-8") as out:
             csv_out=csv.writer(out)
-            csv_out.writerow(['sentence_pair','similarity_Score'])
+            csv_out.writerow(['sentence_pair','similarity_score'])
             for row in list_of_pairs_to_append:
                 csv_out.writerow(row)
 

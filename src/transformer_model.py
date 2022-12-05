@@ -1,12 +1,15 @@
 import csv
+import json
 import numpy as np
 import pandas as pd
 import torch
-from sentence_transformers import SentenceTransformer, util
+from sentence_transformers import SentenceTransformer, util, InputExample, losses
 
 STREAMERS = ['AdinRoss', 'Alinity', 'Amouranth', 'HasanAbi', 'Jerma985', 'KaiCenat', 'LIRIK', 'loltyler1', 'Loserfruit',
 'LVNDMARK', 'moistcr1tikal', 'NICKMERCS', 'Pestily', 'pokimane', 'shroud', 'sodapoppin', 'summit1g', 'tarik',
 'Tfue', 'Wirtual', 'xQc']
+
+
 
 def test_adin():
 
@@ -82,10 +85,42 @@ def test_combined():
         # Print message and streamer name
         print(streamer_name, ": ", message_text, "(Score: {:.4f})".format(score))
 
-def main():
-    test_adin()
-    # test_combined()
 
+def csv_to_inputexample():
+    path2inputexamples = "./data_processing/input_example_pairs/"
+    train_examples = [] # List of InputExample objects
+
+    # Go through each streamer csv and create InputExample pairs
+    for streamer in STREAMERS:
+        streamer_csv = path2inputexamples + streamer + ".csv"
+        df = pd.read_csv(streamer_csv)
+        
+        for row in df.itertuples(index=True, name='Pandas'):
+            messages = json.loads(getattr(row, "sentence_pair"))
+            print(messages)
+            label = getattr(row, "similarity_score")
+            train_examples.append(InputExample(texts=messages, label=label))
+    
+    # Split into train, test, valid
+        
+    return train_examples
+    
+def main():
+    # test_adin()
+    # test_combined()
+    BATCH_SIZE = 16
+    NUM_EPOCHS = 1
+    NUM_WARMUP = 100
+
+    print('Loading pre-trained model')
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+
+    train_examples= csv_to_inputexample()
+    train_dataloader = torch.utils.data.Dataloader(train_examples, shuffle=True, batch_size = BATCH_SIZE)
+    train_loss = losses.CosineSimilarityLoss(model)
+    
+    # The TUNING
+    model.fit(train_objectives =[(train_dataloader, train_loss)], epochs = NUM_EPOCHS, warmup_steps = NUM_WARMUP)
 
 if __name__ == "__main__":
     main()
