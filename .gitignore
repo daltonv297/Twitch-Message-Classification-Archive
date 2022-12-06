@@ -1,5 +1,4 @@
 #ML Data
-GloVe/
 src/data_processing/cleaned_data/*
 src/data_processing/input_example_pairs/*
 src/trained_models/*

@@ -112,58 +112,72 @@ def train_model():
     NUM_EPOCHS = 1
     NUM_WARMUP = 100
 
-    # print('Loading pre-trained model')
-    # model = SentenceTransformer('all-MiniLM-L6-v2')
+    print('Loading pre-trained model')
+    model = SentenceTransformer('all-MiniLM-L6-v2')
 
     # Creating scratch model
-    print("Creating model from scratch")
-    word_embedding_model = models.Transformer('bert-base-uncased', max_seq_length=256)
-    pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension())
-    model = SentenceTransformer(modules=[word_embedding_model, pooling_model])
+    # print("Creating model from scratch")
+    # word_embedding_model = models.Transformer('bert-base-uncased', max_seq_length=256)
+    # pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension())
+    # model = SentenceTransformer(modules=[word_embedding_model, pooling_model])
 
     print("Creating inputexample training data")
     train_examples= csv_to_inputexample()
-    train_dataloader = DataLoader(train_examples[:5000], shuffle=True, batch_size = BATCH_SIZE)
-    #train_loss = losses.CosineSimilarityLoss(model)
-    train_loss = losses.MultipleNegativeRanj
+    train_dataloader = DataLoader(train_examples, shuffle=True, batch_size = BATCH_SIZE)
+    train_loss = losses.CosineSimilarityLoss(model)
+    #train_loss = losses.MultipleNegativeRanj
 
     # The TUNING
     print('Training data loader')
     model.fit(train_objectives =[(train_dataloader, train_loss)], epochs = NUM_EPOCHS, warmup_steps = NUM_WARMUP)
 
     # Save model
-    model.save(path='./trained_models/adin_5000', model_name='adin_5000')
+    model.save(path='./trained_models/all_data', model_name='all_data')
 
 def main():
-    # train_model()
+    #train_model()
 
-    model = SentenceTransformer("./trained_models/adin_5000")
+    # load trained model
+    # iterate through list of streamers (outer loop)
+
+    model = SentenceTransformer("./trained_models/all_data")
     # Test on AdinRoss chat
     path2csv = 'data_processing/cleaned_data/AdinRoss.csv'
     df = pd.read_csv(path2csv, keep_default_na=False)
     test_messages = df['text'].tolist()[5001:5100]
-    print(test_messages)
+    #print([s.encode('utf8') for s in test_messages])
 
-    # Encode messages    
+    # Encode messages
     embeddings = model.encode(test_messages, convert_to_tensor=True)
 
     # Test message
-    test_message = 'ferraris'
-    print(test_message)
+    test_message = 'hello'
+    #print(test_message)
     test_embedding = model.encode(test_message, convert_to_tensor=True)
 
     embeddings = embeddings.cpu().numpy()
     test_embedding = test_embedding.cpu().numpy()
 
-    n,d = embeddings.shape
-    mean = np.mean(embeddings, axis=0)
-    sigma = np.cov(embeddings.T)
-    print(np.linalg.norm(test_embedding))
-    print(mean.shape)
+    sentences1 = ['hello how are you']
+    sentences2 = ['hi how are you doing', 'hello nice to meet you', 'hello what is your name']
 
-    probability = multivariate_normal.pdf(test_embedding, mean, sigma)
+    embeddings1 = model.encode(sentences1, convert_to_tensor=True)
+    embeddings2 = model.encode(sentences2, convert_to_tensor=True)
 
-    print("Probability", probability)
+    avg_embedding = torch.mean(embeddings2, 0)
+
+    cosine_scores = util.cos_sim(embeddings1, avg_embedding)
+    print(cosine_scores)
+
+    # n,d = embeddings.shape
+    # mean = np.mean(embeddings, axis=0)
+    # sigma = np.cov(embeddings.T)
+    # print(np.linalg.norm(test_embedding))
+    # print(mean.shape)
+    #
+    # probability = multivariate_normal.pdf(test_embedding, mean, sigma)
+
+    #print("Probability", probability)
 
 if __name__ == "__main__":
     main()
