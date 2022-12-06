@@ -116,23 +116,23 @@ def train_model(cur_model_name):
     # pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension())
     # model = SentenceTransformer(modules=[word_embedding_model, pooling_model])
 
-    print("Creating inputexample training data")
+    # print("Creating inputexample training data")
     train_examples= csv_to_inputexample()
     train_dataloader = DataLoader(train_examples, shuffle=True, batch_size = BATCH_SIZE)
     train_loss = losses.CosineSimilarityLoss(model)
-    #train_loss = losses.MultipleNegativeRanj
 
-    # The TUNING
+    #
+    # # The TUNING
     print('Training data loader')
     model.fit(train_objectives =[(train_dataloader, train_loss)], epochs = NUM_EPOCHS, warmup_steps = NUM_WARMUP)
 
     # Save model
-    curr_dir = os.path.abspath(os.getcwd())
-    save_path = os.path.join(curr_dir, cur_model_name)
-    os.mkdir(save_path)
-    model.save(path=save_path, model_name=cur_model_name)
+    # curr_dir = os.path.abspath(os.getcwd())
+    # save_path = os.path.join(curr_dir, cur_model_name)
+    # os.mkdir(save_path)
+    model.save(path='trained_models/twitch_chatter_v1', model_name='twitch_chatter_v1')
 
-def test_model(validating):
+def test_model(model_name, validating):
     # load trained model
     # iterate through list of streamers (outer loop)
     # get list of messages per streamer
@@ -144,7 +144,7 @@ def test_model(validating):
     else:
         path = 'data_processing/cleaned_data/test/'
     
-    model = SentenceTransformer("./trained_models/all_data")
+    model = SentenceTransformer("./trained_models/" + model_name)
     
     # Return a list of
     CONTEXT_SIZE = 20
@@ -239,11 +239,11 @@ def main():
     print() 
     SEED = 0
     np.random.seed(SEED)
-    MODEL_NAME = 'refined_train'
+    MODEL_NAME = 'twitch_chatter_v1'
 
-    train_model(MODEL_NAME)
+    #train_model(MODEL_NAME)
 
-    #test_model(validating=True)
+    test_model(MODEL_NAME, validating=True)
 
     
     # # Test on AdinRoss chat
