@@ -117,12 +117,6 @@ def load_messages(streamer_list, test_ratio):
 
     for streamer in streamer_list:
         dataframe = load_streamer_chat(streamer)
-        #length = len(dataframe)
         list_of_dataframes.append(dataframe)
 
-        #train_messages_len = length - length//test_ratio  # Reserve the last test_ratio percent of each streamer chat for test
-
-        #train_dataframes = list_of_dataframes[:train_messages_len] 
-        #test_dataframes = list_of_dataframes[train_messages_len: ]
-
-    return list_of_dataframes #, train_dataframes, test_dataframes
+    return list_of_dataframes

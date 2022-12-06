@@ -3,6 +3,8 @@ import json
 import numpy as np
 import pandas as pd
 import torch
+import os
+
 from torch.utils.data import DataLoader
 from sentence_transformers import SentenceTransformer, util, InputExample, losses, models
 from scipy.stats import multivariate_normal
@@ -96,18 +98,11 @@ def csv_to_inputexample():
             message2 = getattr(row, 'message2')
             label = getattr(row, "similarity_score")
             train_examples.append(InputExample(texts=[message1, message2], label=label))
-    
-    # Split into train, test, valid
         
     return train_examples
     
-def train_model():
-    # setting device on GPU if available, else CPU
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print('Using device:', device)
-    print() 
-    # test_adin()
-    # test_combined()
+def train_model(cur_model_name):
+
     BATCH_SIZE = 16
     NUM_EPOCHS = 1
     NUM_WARMUP = 100
@@ -132,42 +127,152 @@ def train_model():
     model.fit(train_objectives =[(train_dataloader, train_loss)], epochs = NUM_EPOCHS, warmup_steps = NUM_WARMUP)
 
     # Save model
-    model.save(path='./trained_models/all_data', model_name='all_data')
+    curr_dir = os.path.abspath(os.getcwd())
+    save_path = os.path.join(curr_dir, cur_model_name)
+    os.mkdir(save_path)
+    model.save(path=save_path, model_name=cur_model_name)
 
-def main():
-    #train_model()
-
+def test_model(validating):
     # load trained model
     # iterate through list of streamers (outer loop)
+    # get list of messages per streamer
+    # generate list of indices for adverse message substitution
 
+    path = None
+    if validating:
+        path = 'data_processing/cleaned_data/valid/'
+    else:
+        path = 'data_processing/cleaned_data/test/'
+    
     model = SentenceTransformer("./trained_models/all_data")
-    # Test on AdinRoss chat
-    path2csv = 'data_processing/cleaned_data/AdinRoss.csv'
-    df = pd.read_csv(path2csv, keep_default_na=False)
-    test_messages = df['text'].tolist()[5001:5100]
-    #print([s.encode('utf8') for s in test_messages])
+    
+    # Return a list of
+    CONTEXT_SIZE = 20
 
-    # Encode messages
-    embeddings = model.encode(test_messages, convert_to_tensor=True)
+    count_authentic = 0
+    count_fake = 0
+    total_score_authentic = 0
+    total_score_fake = 0
+    correct_valid = 0
+    correct_invalid = 0
 
-    # Test message
-    test_message = 'hello'
-    #print(test_message)
-    test_embedding = model.encode(test_message, convert_to_tensor=True)
+    encoding_dict = {}
 
-    embeddings = embeddings.cpu().numpy()
-    test_embedding = test_embedding.cpu().numpy()
+    # Create dictionary of all message encodings
+    print("Creating streamer encodings for:")
+    print()
+    for streamer_name in STREAMERS:
+        print(streamer_name)
+        # Load in streamer's validation/testing dataframe
+        path2csv = path+streamer_name+'.csv'
+        streamer_df = pd.read_csv(path2csv, keep_default_na=False)
 
-    sentences1 = ['hello how are you']
-    sentences2 = ['hi how are you doing', 'hello nice to meet you', 'hello what is your name']
+        # Create encodings
+        total_messages = streamer_df['text'].tolist()
+        streamer_encodings = model.encode(total_messages, convert_to_tensor=True).cpu().numpy()
 
-    embeddings1 = model.encode(sentences1, convert_to_tensor=True)
-    embeddings2 = model.encode(sentences2, convert_to_tensor=True)
+        # Store in dictionary
+        encoding_dict[streamer_name] = streamer_encodings
+    
+    for streamer_ind in range(len(STREAMERS)):
+        streamer_name = STREAMERS[streamer_ind]
+        print('Running tests on ' + streamer_name)
+        streamer_encodings = encoding_dict[streamer_name]    
 
-    avg_embedding = torch.mean(embeddings2, 0)
+    
+        for i in range(CONTEXT_SIZE, len(streamer_encodings)-CONTEXT_SIZE): # starts at CONTEXT_SIZE ends at len - CONTEXT_SIZE
+            adversarial_bool  = np.random.rand() < 0.1 #10%
+            encoded_context = np.append(streamer_encodings[i-CONTEXT_SIZE:i], streamer_encodings[i+1:i+CONTEXT_SIZE], axis=0)
+            encoded_message = streamer_encodings[i]
 
-    cosine_scores = util.cos_sim(embeddings1, avg_embedding)
-    print(cosine_scores)
+            if adversarial_bool:
+                # Pick another random streamer
+                adv_streamer_ind = np.random.choice([i for i in range(len(STREAMERS)) if i!=streamer_ind]) #Picks streamer index, excluding current streamer
+                adv_streamer_encodings = encoding_dict[STREAMERS[adv_streamer_ind]]
+                encoded_message = adv_streamer_encodings[np.random.choice(range(0, len(adv_streamer_encodings)))]
+            
+            # Average context message embedding
+            avg_embedding = np.mean(encoded_context, axis=0)
+
+            cosine_score = util.cos_sim(encoded_message, avg_embedding)
+            
+            if cosine_score > .5:
+                prediction = 1
+            elif cosine_score < .5:
+                prediction = 0
+            else:
+                prediction = np.random.choice([0, 1])
+                
+
+            if adversarial_bool:
+                count_fake += 1
+                total_score_fake += cosine_score
+                if prediction == 0: #correct guess
+                    correct_invalid += 1
+            else:
+                count_authentic += 1
+                total_score_authentic += cosine_score
+                if prediction == 1:
+                    correct_valid += 1 
+        
+    # Calculate averages
+    average_score_authentic = total_score_authentic / count_authentic
+    average_score_fake = total_score_fake / count_fake
+    accuracy_correct_invalid = correct_invalid/count_fake
+    accuracy_correct_valid = correct_valid/count_authentic
+    total_accuracy = (correct_invalid+correct_valid)/(count_authentic+count_fake)
+
+    print('average score for authentic messages: ', average_score_authentic)
+    print('average score for fake messages: ', average_score_fake)
+    print('Total valid and invalid messages: ', count_authentic, count_fake)
+    print('Percent of accurate predictions when valid: ', accuracy_correct_valid)
+    print('Percent of accurate predictions when invalid: ', accuracy_correct_invalid)
+    print('Total accuracy: ', total_accuracy)
+    if total_accuracy > 0.6:
+        print('Woo Yeah Baby! Thats What Ive Been Waiting For! Thats what its all about!')
+    else:
+        print('It was a misinput, IT WAS A MISINPUT')
+
+def main():
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print('Using device:', device)
+    print() 
+    SEED = 0
+    np.random.seed(SEED)
+    MODEL_NAME = 'refined_train'
+
+    train_model(MODEL_NAME)
+
+    #test_model(validating=True)
+
+    
+    # # Test on AdinRoss chat
+    # path2csv = 'data_processing/cleaned_data/AdinRoss.csv'
+    # df = pd.read_csv(path2csv, keep_default_na=False)
+    # test_messages = df['text'].tolist()[5001:5100]
+    # #print([s.encode('utf8') for s in test_messages])
+
+    # # Encode messages
+    # embeddings = model.encode(test_messages, convert_to_tensor=True)
+
+    # # Test message
+    # test_message = 'hello'
+    # #print(test_message)
+    # test_embedding = model.encode(test_message, convert_to_tensor=True)
+
+    # embeddings = embeddings.cpu().numpy()
+    # test_embedding = test_embedding.cpu().numpy()
+
+    # sentences1 = ['hello how are you']
+    # sentences2 = ['hi how are you doing', 'hello nice to meet you', 'hello what is your name']
+
+    # embeddings1 = model.encode(sentences1, convert_to_tensor=True)
+    # embeddings2 = model.encode(sentences2, convert_to_tensor=True)
+
+    # avg_embedding = torch.mean(embeddings2, 0)
+
+    # cosine_scores = util.cos_sim(embeddings1, avg_embedding)
+    # print(cosine_scores)
 
     # n,d = embeddings.shape
     # mean = np.mean(embeddings, axis=0)

@@ -38,56 +38,42 @@ def create_input_example_pairs(list_of_dfs):
     return list_of_pairs
 
 def create_list_of_dataframes():
+    """
+    """
     list_of_dataframes = util.load_messages(STREAMERS, 30)
     
     # Save path
     save_path = 'cleaned_data/'
 
-    list_of_train_df = []
-    list_of_test_df = []
-    list_of_valid_df = []
-
     # Save each dataframe as a csv file
     # Additionally, split each dataframe into a 80/10/10 split for train test valid
     for i in range(len(list_of_dataframes)):
         streamer_name = STREAMERS[i]
-        list_of_dataframes[i].to_csv(save_path + streamer_name + '.csv')
+        # list_of_dataframes[i].to_csv(save_path + streamer_name + '.csv') # Uncomment if you want a complete csv for literally no reason
         
         train, test = train_test_split(list_of_dataframes[i], test_size = 0.2)
         test, val = train_test_split(test, test_size = 0.5)
-        list_of_train_df.append(train)
-        list_of_test_df.append(test)
-        list_of_valid_df.append(val)
-
-    # Save combined dataframe as a csv file
-    combined_dataframe = pd.concat(list_of_dataframes)
-    combined_dataframe.to_csv(save_path + 'combined_dataframe.csv')
-
-    # Save combined test, train, valid to a csv file
-    df_comb_train = pd.concat(list_of_train_df)
-    df_comb_test = pd.concat(list_of_test_df)
-    df_comb_valid = pd.concat(list_of_valid_df)
-
-    df_comb_train.to_csv(save_path + "combined_train.csv")
-    df_comb_test.to_csv(save_path + "combined_test.csv")
-    df_comb_valid.to_csv(save_path + "combined_valid.csv")
-
-    return list_of_dataframes
+        train.to_csv(save_path+'train/'+streamer_name + '.csv')
+        test.to_csv(save_path+'test/'+streamer_name + '.csv')
+        val.to_csv(save_path+'valid/'+streamer_name + '.csv')
 
 def main():
 
-    list_of_dataframes = []
-    if os.path.exists('cleaned_data/AdinRoss.csv'):
-        print("Clean data already exists, loading in now.")
-        for i in range(len(STREAMERS)):
-            path2csv = 'cleaned_data/'+STREAMERS[i]+'.csv'
-            list_of_dataframes.append(pd.read_csv(path2csv, keep_default_na=False))
-    else:
+    list_of_train_dataframes = []
+    data_generated = os.path.exists('cleaned_data/AdinRoss.csv')
+    if not data_generated:
         print("Clean data has not yet been generated. Generating now.")
-        list_of_dataframes = create_list_of_dataframes()
+        create_list_of_dataframes()
+        print("Finished creating clean data. Loading in training data now.")
+    else:
+        print("Clean data already exists, loading in training data now.")
 
-    print("Generating input_example_pairs")
-    create_input_example_pairs(list_of_dataframes)
+    for i in range(len(STREAMERS)):
+        path2csv = 'cleaned_data/train/'+STREAMERS[i]+'.csv'
+        list_of_train_dataframes.append(pd.read_csv(path2csv, keep_default_na=False))
+
+    print("Generating input_example_pairs on train_dataframes")
+    create_input_example_pairs(list_of_train_dataframes)
 
 if __name__ == "__main__":
     main()
