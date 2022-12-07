@@ -8,6 +8,7 @@ import os
 from torch.utils.data import DataLoader
 from sentence_transformers import SentenceTransformer, util, InputExample, losses, models
 from scipy.stats import multivariate_normal
+from power_spherical import HypersphericalUniform, MarginalTDistribution, PowerSpherical
 
 STREAMERS = ['AdinRoss', 'Alinity', 'Amouranth', 'HasanAbi', 'Jerma985', 'KaiCenat', 'LIRIK', 'loltyler1', 'Loserfruit',
  'moistcr1tikal', 'NICKMERCS', 'Pestily', 'pokimane', 'shroud', 'sodapoppin', 'summit1g', 'tarik',
@@ -100,7 +101,8 @@ def csv_to_inputexample():
             train_examples.append(InputExample(texts=[message1, message2], label=label))
         
     return train_examples
-    
+
+
 def train_model(cur_model_name):
 
     BATCH_SIZE = 16
