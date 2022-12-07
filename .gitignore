@@ -1,7 +1,7 @@
 #ML Data
 src/data_processing/cleaned_data/*
 src/data_processing/input_example_pairs/*
-#src/trained_models/*
+src/trained_models/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
