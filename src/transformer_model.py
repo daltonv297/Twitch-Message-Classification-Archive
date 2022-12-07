@@ -4,11 +4,16 @@ import numpy as np
 import pandas as pd
 import torch
 import os
+import sys
+import matplotlib.pyplot as plt
+
 
 from torch.utils.data import DataLoader
 from sentence_transformers import SentenceTransformer, util, InputExample, losses, models
 from scipy.stats import multivariate_normal
+from sklearn import metrics
 from power_spherical import PowerSpherical
+
 
 STREAMERS = ['AdinRoss', 'Alinity', 'Amouranth', 'HasanAbi', 'Jerma985', 'KaiCenat', 'LIRIK', 'loltyler1', 'Loserfruit',
  'moistcr1tikal', 'NICKMERCS', 'Pestily', 'pokimane', 'shroud', 'sodapoppin', 'summit1g', 'tarik',
@@ -209,14 +214,7 @@ def test_model_PS(model_name, validating):
     print('mu: ', mu)
     print('k: ', k)
 
-
-    # for streamer_ind in range(len(STREAMERS)):
-    #     streamer_name = STREAMERS[streamer_ind]
-    #     print('Running tests on ' + streamer_name)
-    #     streamer_encodings = encoding_dict[streamer_name]
-
-
-def test_model_cos_sim(model_name, validating):
+def test_model_cos_sim(model_name, validating, verbose):
     # load trained model
     # iterate through list of streamers (outer loop)
     # get list of messages per streamer
@@ -237,16 +235,23 @@ def test_model_cos_sim(model_name, validating):
     count_fake = 0
     total_score_authentic = 0
     total_score_fake = 0
-    correct_valid = 0
-    correct_invalid = 0
+
+    true_positive = 0
+    true_negative = 0
+    false_positive = 0
+    false_negative = 0
+    true_labels = []
+    pred_labels = []
 
     encoding_dict = {}
 
     # Create dictionary of all message encodings
-    print("Creating streamer encodings for:")
-    print()
+    if verbose:
+        print("Creating streamer encodings for:")
+        print()
     for streamer_name in STREAMERS:
-        print(streamer_name)
+        if verbose:
+            print(streamer_name)
         # Load in streamer's validation/testing dataframe
         path2csv = path+streamer_name+'.csv'
         streamer_df = pd.read_csv(path2csv, keep_default_na=False)
@@ -260,7 +265,8 @@ def test_model_cos_sim(model_name, validating):
     
     for streamer_ind in range(len(STREAMERS)):
         streamer_name = STREAMERS[streamer_ind]
-        print('Running tests on ' + streamer_name)
+        if verbose:
+            print('Running tests on ' + streamer_name)
         streamer_encodings = encoding_dict[streamer_name]    
 
     
@@ -289,46 +295,79 @@ def test_model_cos_sim(model_name, validating):
                 
 
             if adversarial_bool:
+                true_labels.append(0)
                 count_fake += 1
                 total_score_fake += cosine_score
                 if prediction == 0: #correct guess
-                    correct_invalid += 1
+                    pred_labels.append(0)
+                    true_negative += 1
+                else:
+                    pred_labels.append(1)
+                    false_positive += 1
             else:
+                true_labels.append(1)
                 count_authentic += 1
                 total_score_authentic += cosine_score
                 if prediction == 1:
-                    correct_valid += 1 
+                    pred_labels.append(1)
+                    true_positive += 1 
+                else:
+                    pred_labels.append(0)
+                    false_negative += 1
         
     # Calculate averages
     average_score_authentic = total_score_authentic / count_authentic
     average_score_fake = total_score_fake / count_fake
-    accuracy_correct_invalid = correct_invalid/count_fake
-    accuracy_correct_valid = correct_valid/count_authentic
-    total_accuracy = (correct_invalid+correct_valid)/(count_authentic+count_fake)
+    accuracy_true_negative = true_negative/count_fake
+    accuracy_true_positive = true_positive/count_authentic
+    total_accuracy = (true_negative+true_positive)/(count_authentic+count_fake)
 
-    print('average score for authentic messages: ', average_score_authentic)
-    print('average score for fake messages: ', average_score_fake)
-    print('Total valid and invalid messages: ', count_authentic, count_fake)
-    print('Percent of accurate predictions when valid: ', accuracy_correct_valid)
-    print('Percent of accurate predictions when invalid: ', accuracy_correct_invalid)
-    print('Total accuracy: ', total_accuracy)
-    if total_accuracy > 0.6:
-        print('Woo Yeah Baby! Thats What Ive Been Waiting For! Thats what its all about!')
-    else:
-        print('It was a misinput, IT WAS A MISINPUT')
+    # Calculate precision/recall
+    precision = true_positive / (true_positive + false_positive)
+    recall = true_positive / (true_positive + false_negative)
+    confusion_matrix = metrics.confusion_matrix(true_labels, pred_labels)
+    disp = metrics.ConfusionMatrixDisplay(confusion_matrix, display_labels = ['False', 'True'])
+    disp.plot()
+    plt.savefig(model_name+'_confusion_matrix.png')
+
+    print('Dataset info:')
+    print('Total valid and invalid messages:', count_authentic, count_fake)
+    print('average cosine score for authentic messages:', average_score_authentic)
+    print('average cosine score for fake messages:', average_score_fake)
+    print()
+
+    print('Testing info:')
+    print('Percent of accurate predictions when valid:', accuracy_true_positive)
+    print('Percent of accurate predictions when invalid:', accuracy_true_negative)
+    print('Total accuracy:', total_accuracy)
+
+    print('True positive, false positive, true negative, false negative:', true_positive, false_positive, true_negative, false_negative)
+    print('Precision:', precision)
+    print('Recall:', recall)
+    print()
+
+    # if total_accuracy > 0.6:
+    #     print('Woo Yeah Baby! Thats What Ive Been Waiting For! Thats what its all about!')
+    # else:
+    #     print('It was a misinput, IT WAS A MISINPUT')
 
 def main():
+    #If passing in arguments later:
+    args = sys.argv[1:]
+
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print('Using device:', device)
-    print() 
     SEED = 0
     np.random.seed(SEED)
-    MODEL_NAME = 'twitch_chatter_v1'
+    #MODEL_NAME = 'default_paraphrase'
+    MODELS = ['default_minilm','default_paraphrase', 'twitch_chatter_v1', 'twitch_chatter_v1_paraphrase']
 
     #train_model(MODEL_NAME)
 
-    #test_model_cos_sim(MODEL_NAME, validating=True)
-    test_model_PS(MODEL_NAME, validating=True)
+    for model in MODELS:
+        print("Testing model ", model)
+        test_model_cos_sim(model, validating=True, verbose = False)
 
     
     # # Test on AdinRoss chat
