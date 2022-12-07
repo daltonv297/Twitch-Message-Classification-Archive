@@ -8,7 +8,7 @@ import os
 from torch.utils.data import DataLoader
 from sentence_transformers import SentenceTransformer, util, InputExample, losses, models
 from scipy.stats import multivariate_normal
-from power_spherical import HypersphericalUniform, MarginalTDistribution, PowerSpherical
+from power_spherical import PowerSpherical
 
 STREAMERS = ['AdinRoss', 'Alinity', 'Amouranth', 'HasanAbi', 'Jerma985', 'KaiCenat', 'LIRIK', 'loltyler1', 'Loserfruit',
  'moistcr1tikal', 'NICKMERCS', 'Pestily', 'pokimane', 'shroud', 'sodapoppin', 'summit1g', 'tarik',
@@ -102,6 +102,37 @@ def csv_to_inputexample():
         
     return train_examples
 
+def train_power_spherical(samples):
+    d = samples.size(dim=1)
+    mu = torch.tensor([1.] + [0.] * (d - 1), requires_grad=True)
+    k = torch.tensor(1., requires_grad=True)
+    dist = PowerSpherical(mu, k)
+
+    def loss(x):
+        return -torch.sum(dist.log_prob(x))
+
+    learning_rate = 0.01
+    n_iters = 50
+
+    l = loss(samples)
+
+    for epoch in range(n_iters):
+        l_prev = l
+        l = loss(samples)
+        l.backward()
+
+        with torch.no_grad():
+            k -= learning_rate * k.grad
+            mu -= learning_rate * mu.grad
+            mu /= torch.norm(mu)
+
+        k.grad.zero_()
+        mu.grad.zero_()
+
+        dist_new = PowerSpherical(mu, k)
+
+    return mu, k
+
 
 def train_model(cur_model_name):
 
@@ -134,7 +165,56 @@ def train_model(cur_model_name):
     # os.mkdir(save_path)
     model.save(path='trained_models/twitch_chatter_v1', model_name='twitch_chatter_v1')
 
-def test_model(model_name, validating):
+def test_model_PS(model_name, validating):
+    if validating:
+        path = 'data_processing/cleaned_data/valid/'
+    else:
+        path = 'data_processing/cleaned_data/test/'
+
+    model = SentenceTransformer("./trained_models/" + model_name)
+
+    CONTEXT_SIZE = 20
+
+    encoding_dict = {}
+
+    # Create dictionary of all message encodings
+    print("Creating streamer encodings for:")
+    print()
+    for streamer_name in STREAMERS:
+        print(streamer_name)
+        # Load in streamer's validation/testing dataframe
+        path2csv = path+streamer_name+'.csv'
+        streamer_df = pd.read_csv(path2csv, keep_default_na=False)
+
+        total_messages = streamer_df['text'].tolist()
+        total_messages = total_messages[-500:]
+        streamer_encodings = model.encode(total_messages, convert_to_tensor=True)
+
+        # Store in dictionary
+        encoding_dict[streamer_name] = streamer_encodings
+
+    # get distribution of all messages
+    print('Getting distribution from all messages')
+    all_encodings = None
+    for streamer in STREAMERS:
+        streamer_encodings = encoding_dict[streamer_name]
+        if all_encodings is not None:
+            all_encodings = torch.cat((all_encodings, streamer_encodings))
+        else:
+            all_encodings = streamer_encodings
+    mu, k = train_power_spherical(all_encodings)
+
+    print('mu: ', mu)
+    print('k: ', k)
+
+
+    # for streamer_ind in range(len(STREAMERS)):
+    #     streamer_name = STREAMERS[streamer_ind]
+    #     print('Running tests on ' + streamer_name)
+    #     streamer_encodings = encoding_dict[streamer_name]
+
+
+def test_model_cos_sim(model_name, validating):
     # load trained model
     # iterate through list of streamers (outer loop)
     # get list of messages per streamer
@@ -245,7 +325,8 @@ def main():
 
     #train_model(MODEL_NAME)
 
-    test_model(MODEL_NAME, validating=True)
+    #test_model_cos_sim(MODEL_NAME, validating=True)
+    test_model_PS(MODEL_NAME, validating=True)
 
     
     # # Test on AdinRoss chat
