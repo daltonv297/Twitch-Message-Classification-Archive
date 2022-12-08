@@ -6,6 +6,8 @@ import torch
 import os
 import sys
 import matplotlib.pyplot as plt
+import mpl_toolkits.mplot3d.axes3d as axes3d
+
 import datetime
 import string
 
@@ -14,6 +16,8 @@ from torch.utils.data import DataLoader
 from sentence_transformers import SentenceTransformer, util, InputExample, losses, models
 from scipy.stats import multivariate_normal
 from sklearn import metrics
+from sklearn.decomposition import TruncatedSVD
+from sklearn.decomposition import PCA
 from power_spherical import PowerSpherical
 
 
@@ -103,8 +107,8 @@ def train_model(cur_model_name):
     NUM_STEPS_PER_EPOCH = (1143010 // BATCH_SIZE)+1
 
     print('Loading pre-trained model')
-    #model = SentenceTransformer('all-MiniLM-L6-v2')
-    model = SentenceTransformer('paraphrase-MiniLM-L3-v2')
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    # model = SentenceTransformer('paraphrase-MiniLM-L3-v2')
 
     # Creating scratch model
     # print("Creating model from scratch")
@@ -240,7 +244,7 @@ def test_model_cos_sim(model_name, validating, verbose, timestamp_context):
         path = 'data_processing/cleaned_data/test_chrono/'
     
     model = SentenceTransformer("./trained_models/"+model_name)
-    
+
     CONTEXT_SIZE = 20
     CONTEXT_DURATION = 5 #seconds
 
@@ -284,7 +288,7 @@ def test_model_cos_sim(model_name, validating, verbose, timestamp_context):
         timestamp_string = streamer_df['timestamp'].tolist()
         timestamps = [datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S.%f') for x in timestamp_string] # List of timestamp objects
         timestamp_dict[streamer_name] = timestamps
-    
+
     # Per streamer, test
     for streamer_ind in range(len(STREAMERS)):
         streamer_name = STREAMERS[streamer_ind]
@@ -297,7 +301,7 @@ def test_model_cos_sim(model_name, validating, verbose, timestamp_context):
             adversarial_bool  = np.random.rand() < 0.1 #10%
             encoded_message = streamer_encodings[i]
             encoded_context = []
-        
+
             # If context window based on timestamp
             if timestamp_context:
                 cur_ts = streamer_timestamps[i]
@@ -321,7 +325,7 @@ def test_model_cos_sim(model_name, validating, verbose, timestamp_context):
                         post_limit_index += 1
                     else:
                         reached_post_limit = True
-                
+
                 #print('Context window of ', CONTEXT_DURATION, ' seconds had ', post_limit_index-prev_limit_index, ' messages')
                 encoded_context = np.append(streamer_encodings[prev_limit_index:i], streamer_encodings[i+1:post_limit_index], axis=0)
 
@@ -406,6 +410,101 @@ def test_model_cos_sim(model_name, validating, verbose, timestamp_context):
     # else:
     #     print('It was a misinput, IT WAS A MISINPUT')
 
+def visualize_embeddings(model_name):
+
+    path = 'data_processing/cleaned_data/test/'
+
+    model = SentenceTransformer("./trained_models/" + model_name)
+    encoding_dict = {}
+
+    num_samples = 500
+
+    # Create dictionary of all message encodings
+    print("Creating streamer encodings for:")
+    print()
+    for streamer_name in STREAMERS:
+        print(streamer_name)
+        # Load in streamer's validation/testing dataframe
+        path2csv = path+streamer_name+'.csv'
+        streamer_df = pd.read_csv(path2csv, keep_default_na=False)
+
+        total_messages = streamer_df['text'].tolist()
+        if len(total_messages) > num_samples:
+            total_messages = np.random.choice(total_messages, size=num_samples, replace=False)
+        streamer_encodings = model.encode(total_messages, convert_to_tensor=True)
+
+        # Store in dictionary
+        encoding_dict[streamer_name] = streamer_encodings
+
+    all_encodings = None
+    for streamer_name in STREAMERS:
+        streamer_encodings = encoding_dict[streamer_name]
+        if all_encodings is not None:
+            all_encodings = torch.cat((all_encodings, streamer_encodings))
+        else:
+            all_encodings = streamer_encodings
+
+    #all_encodings = all_encodings.numpy()
+
+
+    # svd = TruncatedSVD(n_components=k, n_iter=n_iter)
+    # svd.fit(all_encodings.cpu())
+    # embeddings_reduced = svd.transform(all_encodings.cpu())
+
+    pca3 = PCA(n_components=3)
+    pca3.fit(all_encodings.cpu())
+
+
+    theta, phi = np.linspace(0, 2 * np.pi, 20), np.linspace(0, np.pi, 20)
+    THETA, PHI = np.meshgrid(theta, phi)
+    X, Y, Z = np.sin(PHI) * np.cos(THETA), np.sin(PHI) * np.sin(THETA), np.cos(PHI)
+
+    fig = plt.figure(figsize=(8,8))
+    ax = fig.gca(projection='3d')
+    ax.plot_wireframe(X, Y, Z, linewidth=1, alpha=0.25, color="gray")
+
+    cm = plt.get_cmap('gist_ncar')
+    num_colors = len(STREAMERS)
+    color_list = [cm(1.*i/num_colors) for i in np.random.permutation(num_colors)]
+    ax.set_prop_cycle(color=color_list)
+
+    for streamer in STREAMERS:
+        embeddings_reduced = pca3.transform(encoding_dict[streamer].cpu())
+        embeddings_reduced = embeddings_reduced / np.linalg.norm(embeddings_reduced, axis=1).reshape(-1, 1)
+        X, Y, Z = embeddings_reduced.T
+        ax.scatter(X, Y, Z, s=5, label=streamer)
+
+    # ax.plot(*torch.stack((torch.zeros_like(loc), loc)).T, linewidth=4, label="$\kappa={}$".format(scale))
+
+    # X, Y, Z = embeddings_reduced.T
+    # ax.scatter(X, Y, Z, s=5)
+
+    ax.view_init(30, 45)
+    ax.tick_params(axis='both')
+    plt.legend(loc='upper center', ncol=5, markerscale=3)
+    plt.show()
+
+    fig = plt.figure(figsize=(8,8))
+    ax = fig.gca()
+    ax.set_prop_cycle(color=color_list)
+
+    pca2 = PCA(n_components=2)
+    pca2.fit(all_encodings.cpu())
+
+
+    for streamer in STREAMERS:
+        embeddings_reduced = pca2.transform(encoding_dict[streamer].cpu())
+        X, Y = embeddings_reduced.T
+        ax.scatter(X, Y, s=5, label=streamer)
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0 + box.height * 0.15,
+                     box.width, box.height * 0.85])
+
+    plt.legend(loc='lower center', bbox_to_anchor=(0.5, -0.25), ncol=5, markerscale=3)
+    plt.show()
+
+
 def main():
     #If passing in arguments later:
     args = sys.argv[1:]
@@ -414,15 +513,21 @@ def main():
     print('Using device:', device)
     SEED = 0
     np.random.seed(SEED)
-    MODEL_NAME = 'twitch_chatter_v1_paraphrase_chrono'
+    #MODEL_NAME = 'default_paraphrase'
     MODELS = ['default_minilm','default_paraphrase', 'twitch_chatter_v1', 'twitch_chatter_v1_paraphrase']
 
     train_model(MODEL_NAME)
 
     # test_model_PS('twitch_chatter_v1', validating=True)
+    #test_model_PS('twitch_chatter_v1', validating=True)
     # for model in MODELS:
     #     print("Testing model ", model)
     #     test_model_cos_sim(model, validating=True, verbose = True, timestamp_context=True)
+    #     test_model_cos_sim(model, validating=True, verbose = False)
+
+    visualize_embeddings('twitch_chatter_v1')
+
+
 
 if __name__ == "__main__":
     main()
