@@ -102,7 +102,7 @@ def create_input_example_pairs(streamer_df, list_of_other_dfs):
     
     return list_of_pairs 
 
-def load_messages(streamer_list, test_ratio):
+def load_messages(streamer_list):
     """Returns a list of dataframes from streamers in streamer_list
 
     Args:
@@ -112,6 +112,7 @@ def load_messages(streamer_list, test_ratio):
     Returns:
         list_of_dataframes: a list of dataframes of messages from streamer_list
     """
+    print('Loading in dataframes')
 
     list_of_dataframes = []
 
@@ -119,4 +120,6 @@ def load_messages(streamer_list, test_ratio):
         dataframe = load_streamer_chat(streamer)
         list_of_dataframes.append(dataframe)
 
+    print('Finished loading in dataframes')
+    
     return list_of_dataframes
