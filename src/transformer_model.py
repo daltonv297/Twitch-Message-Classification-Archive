@@ -6,6 +6,8 @@ import torch
 import os
 import sys
 import matplotlib.pyplot as plt
+import datetime
+import string
 
 
 from torch.utils.data import DataLoader
@@ -20,78 +22,8 @@ STREAMERS = ['AdinRoss', 'Alinity', 'Amouranth', 'HasanAbi', 'Jerma985', 'KaiCen
 'Tfue', 'Wirtual', 'xQc']
 
 
-
-def test_adin():
-
-    # Load the SentenceTransformer model
-    model = SentenceTransformer('adin_5000')
-
-    # Test on AdinRoss chat
-    path2csv = 'data_processing/cleaned_data/AdinRoss.csv'
-    df = pd.read_csv(path2csv, keep_default_na=False)
-    messages = df['text'].tolist()[:5000]
-
-    # Encode messages    
-    embeddings = model.encode(messages, convert_to_tensor=True)
-
-    # Test message
-    test_message = 'adin6pack adin6pack adin6pack'    
-    test_embedding = model.encode(test_message, convert_to_tensor=True)
-
-    # Closest 5 messages based on cosine similarity
-    cos_scores = util.cos_sim(test_embedding, embeddings)[0]
-    top_results = torch.topk(cos_scores, k=5)
-
-    print("\n\n======================\n\n")
-    print("Query:", test_message)
-    print("\nTop 5 most similar sentences in the data:")
-
-    for score, idx in zip(top_results[0], top_results[1]):
-        # Get channel name from message
-        message_text = messages[idx]
-        streamer_name = df[df['text'] == message_text]['channel_name'].tolist()[0]
-
-        # Print message and streamer name
-        print(streamer_name, ": ", message_text, "(Score: {:.4f})".format(score))
-
-def test_combined():
-    # Load the SentenceTransformer model
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-
-    # Test on combined chat
-    path2csv = 'data_processing/cleaned_data/combined_dataframe.csv'
-    df = pd.read_csv(path2csv, keep_default_na=False)
-    messages = df['text'].tolist()
-
-    # Encode messages    
-    embeddings = model.encode(messages, convert_to_tensor=True)
-    print("Completed message embedding...")
-
-    # Test message
-    test_message = 'pogchamp widepeepoHappy'    
-    test_embedding = model.encode(test_message, convert_to_tensor=True)
-    print("Completed test message embedding...")
-
-    # Closest 5 messages based on cosine similarity
-    cos_scores = util.cos_sim(test_embedding, embeddings)[0]
-    top_results = torch.topk(cos_scores, k=5)
-    print("Completed cosine similarity...")
-
-    print("\n\n======================\n\n")
-    print("Query:", test_message)
-    print("\nTop 5 most similar sentences in the data:")
-
-    for score, idx in zip(top_results[0], top_results[1]):
-        # Get channel name from message
-        message_text = messages[idx]
-        streamer_name = df[df['text'] == message_text]['channel_name'].tolist()[0]
-
-        # Print message and streamer name
-        print(streamer_name, ": ", message_text, "(Score: {:.4f})".format(score))
-
-
 def csv_to_inputexample():
-    path2inputexamples = "./data_processing/input_example_pairs/"
+    path2inputexamples = "./data_processing/input_example_pairs_chrono/"
     train_examples = [] # List of InputExample objects
 
     # Go through each streamer csv and create InputExample pairs
@@ -171,8 +103,8 @@ def train_model(cur_model_name):
     NUM_STEPS_PER_EPOCH = (1143010 // BATCH_SIZE)+1
 
     print('Loading pre-trained model')
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    # model = SentenceTransformer('paraphrase-MiniLM-L3-v2')
+    #model = SentenceTransformer('all-MiniLM-L6-v2')
+    model = SentenceTransformer('paraphrase-MiniLM-L3-v2')
 
     # Creating scratch model
     # print("Creating model from scratch")
@@ -185,8 +117,7 @@ def train_model(cur_model_name):
     train_dataloader = DataLoader(train_examples, shuffle=True, batch_size = BATCH_SIZE)
     train_loss = losses.CosineSimilarityLoss(model)
 
-    #
-    # # The TUNING
+    # The TUNING
     print('Training data loader')
     model.fit(train_objectives =[(train_dataloader, train_loss)], epochs = NUM_EPOCHS, warmup_steps = NUM_WARMUP)
 
@@ -296,7 +227,7 @@ def test_model_PS(model_name, validating):
     print('accuracy detecting real messages: ', count_correct_real / count_real)
     print('total accuracy: ', (count_correct_fake + count_correct_real) / (count_fake + count_real))
 
-def test_model_cos_sim(model_name, validating, verbose, ):
+def test_model_cos_sim(model_name, validating, verbose, timestamp_context):
     # load trained model
     # iterate through list of streamers (outer loop)
     # get list of messages per streamer
@@ -304,13 +235,14 @@ def test_model_cos_sim(model_name, validating, verbose, ):
 
     path = None
     if validating:
-        path = 'data_processing/cleaned_data/valid/'
+        path = 'data_processing/cleaned_data/valid_chrono/'
     else:
-        path = 'data_processing/cleaned_data/test/'
+        path = 'data_processing/cleaned_data/test_chrono/'
     
     model = SentenceTransformer("./trained_models/"+model_name)
     
     CONTEXT_SIZE = 20
+    CONTEXT_DURATION = 5 #seconds
 
     # Performance tracking:
     count_authentic = 0
@@ -327,15 +259,17 @@ def test_model_cos_sim(model_name, validating, verbose, ):
 
     # Create dictionary of all message encodings
     encoding_dict = {}
+    timestamp_dict = {}
 
     if verbose:
         print("Creating streamer encodings for:")
         print()
 
+    # Per streamer, create encodings
     for streamer_name in STREAMERS:
         if verbose:
             print(streamer_name)
-            
+
         # Load in streamer's validation/testing dataframe
         path2csv = path+streamer_name+'.csv'
         streamer_df = pd.read_csv(path2csv, keep_default_na=False)
@@ -343,22 +277,59 @@ def test_model_cos_sim(model_name, validating, verbose, ):
         # Create encodings
         total_messages = streamer_df['text'].tolist()
         streamer_encodings = model.encode(total_messages, convert_to_tensor=True).cpu().numpy()
-
         # Store in dictionary
         encoding_dict[streamer_name] = streamer_encodings
+
+        # Used when using the timestamp metric for context
+        timestamp_string = streamer_df['timestamp'].tolist()
+        timestamps = [datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S.%f') for x in timestamp_string] # List of timestamp objects
+        timestamp_dict[streamer_name] = timestamps
     
+    # Per streamer, test
     for streamer_ind in range(len(STREAMERS)):
         streamer_name = STREAMERS[streamer_ind]
         if verbose:
             print('Running tests on ' + streamer_name)
         streamer_encodings = encoding_dict[streamer_name]    
+        streamer_timestamps = timestamp_dict[streamer_name]
 
-    
         for i in range(CONTEXT_SIZE, len(streamer_encodings)-CONTEXT_SIZE): # starts at CONTEXT_SIZE ends at len - CONTEXT_SIZE
             adversarial_bool  = np.random.rand() < 0.1 #10%
-            encoded_context = np.append(streamer_encodings[i-CONTEXT_SIZE:i], streamer_encodings[i+1:i+CONTEXT_SIZE], axis=0)
             encoded_message = streamer_encodings[i]
+            encoded_context = []
+        
+            # If context window based on timestamp
+            if timestamp_context:
+                cur_ts = streamer_timestamps[i]
+                reached_prev_limit = False
+                reached_post_limit = False
+                prev_limit_index = i-1
+                post_limit_index = i+1
+                # Find the earliest message to include in context
+                while not reached_prev_limit and prev_limit_index >= 0:
+                    prev_message_ts = streamer_timestamps[prev_limit_index]
+                    #print((cur_ts - prev_message_ts).seconds)
+                    if (cur_ts - prev_message_ts).seconds < CONTEXT_DURATION:
+                        prev_limit_index -= 1
+                    else:
+                        reached_prev_limit = True
+                # Find latest message to include in context
+                while not reached_post_limit and post_limit_index < len(streamer_encodings):
+                    post_message_ts = streamer_timestamps[post_limit_index]
+                    #print((post_message_ts - cur_ts).seconds)
+                    if (post_message_ts - cur_ts).seconds < CONTEXT_DURATION:
+                        post_limit_index += 1
+                    else:
+                        reached_post_limit = True
+                
+                #print('Context window of ', CONTEXT_DURATION, ' seconds had ', post_limit_index-prev_limit_index, ' messages')
+                encoded_context = np.append(streamer_encodings[prev_limit_index:i], streamer_encodings[i+1:post_limit_index], axis=0)
 
+            # If context window based on number of messages
+            else:
+                encoded_context = np.append(streamer_encodings[i-CONTEXT_SIZE:i], streamer_encodings[i+1:i+CONTEXT_SIZE], axis=0)
+
+            # Insert adversarial streamer message
             if adversarial_bool:
                 # Pick another random streamer
                 adv_streamer_ind = np.random.choice([i for i in range(len(STREAMERS)) if i!=streamer_ind]) #Picks streamer index, excluding current streamer
@@ -412,7 +383,7 @@ def test_model_cos_sim(model_name, validating, verbose, ):
     confusion_matrix = metrics.confusion_matrix(true_labels, pred_labels, normalize = 'true')
     disp = metrics.ConfusionMatrixDisplay(confusion_matrix, display_labels = ['False', 'True'])
     disp.plot()
-    plt.savefig(model_name+'_confusion_matrix_normalized_true.png')
+    plt.savefig('performance_metrics/'+model_name+'_cm_norm_true_cd=5sec.png')
 
     print('Dataset info:')
     print('Total valid and invalid messages:', count_authentic, count_fake)
@@ -439,59 +410,19 @@ def main():
     #If passing in arguments later:
     args = sys.argv[1:]
 
-
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print('Using device:', device)
     SEED = 0
     np.random.seed(SEED)
-    #MODEL_NAME = 'default_paraphrase'
+    MODEL_NAME = 'twitch_chatter_v1_paraphrase_chrono'
     MODELS = ['default_minilm','default_paraphrase', 'twitch_chatter_v1', 'twitch_chatter_v1_paraphrase']
 
-    #train_model(MODEL_NAME)
+    train_model(MODEL_NAME)
 
-    #test_model_PS('twitch_chatter_v1', validating=True)
-    for model in MODELS:
-        print("Testing model ", model)
-        test_model_cos_sim(model, validating=True, verbose = False)
-
-    
-    # # Test on AdinRoss chat
-    # path2csv = 'data_processing/cleaned_data/AdinRoss.csv'
-    # df = pd.read_csv(path2csv, keep_default_na=False)
-    # test_messages = df['text'].tolist()[5001:5100]
-    # #print([s.encode('utf8') for s in test_messages])
-
-    # # Encode messages
-    # embeddings = model.encode(test_messages, convert_to_tensor=True)
-
-    # # Test message
-    # test_message = 'hello'
-    # #print(test_message)
-    # test_embedding = model.encode(test_message, convert_to_tensor=True)
-
-    # embeddings = embeddings.cpu().numpy()
-    # test_embedding = test_embedding.cpu().numpy()
-
-    # sentences1 = ['hello how are you']
-    # sentences2 = ['hi how are you doing', 'hello nice to meet you', 'hello what is your name']
-
-    # embeddings1 = model.encode(sentences1, convert_to_tensor=True)
-    # embeddings2 = model.encode(sentences2, convert_to_tensor=True)
-
-    # avg_embedding = torch.mean(embeddings2, 0)
-
-    # cosine_scores = util.cos_sim(embeddings1, avg_embedding)
-    # print(cosine_scores)
-
-    # n,d = embeddings.shape
-    # mean = np.mean(embeddings, axis=0)
-    # sigma = np.cov(embeddings.T)
-    # print(np.linalg.norm(test_embedding))
-    # print(mean.shape)
-    #
-    # probability = multivariate_normal.pdf(test_embedding, mean, sigma)
-
-    #print("Probability", probability)
+    # test_model_PS('twitch_chatter_v1', validating=True)
+    # for model in MODELS:
+    #     print("Testing model ", model)
+    #     test_model_cos_sim(model, validating=True, verbose = True, timestamp_context=True)
 
 if __name__ == "__main__":
     main()
