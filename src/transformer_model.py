@@ -296,9 +296,7 @@ def test_model_PS(model_name, validating):
     print('accuracy detecting real messages: ', count_correct_real / count_real)
     print('total accuracy: ', (count_correct_fake + count_correct_real) / (count_fake + count_real))
 
-
-
-def test_model_cos_sim(model_name, validating, verbose):
+def test_model_cos_sim(model_name, validating, verbose, ):
     # load trained model
     # iterate through list of streamers (outer loop)
     # get list of messages per streamer
@@ -312,9 +310,9 @@ def test_model_cos_sim(model_name, validating, verbose):
     
     model = SentenceTransformer("./trained_models/"+model_name)
     
-    # Return a list of
     CONTEXT_SIZE = 20
 
+    # Performance tracking:
     count_authentic = 0
     count_fake = 0
     total_score_authentic = 0
@@ -327,15 +325,17 @@ def test_model_cos_sim(model_name, validating, verbose):
     true_labels = []
     pred_labels = []
 
+    # Create dictionary of all message encodings
     encoding_dict = {}
 
-    # Create dictionary of all message encodings
     if verbose:
         print("Creating streamer encodings for:")
         print()
+
     for streamer_name in STREAMERS:
         if verbose:
             print(streamer_name)
+            
         # Load in streamer's validation/testing dataframe
         path2csv = path+streamer_name+'.csv'
         streamer_df = pd.read_csv(path2csv, keep_default_na=False)
@@ -409,10 +409,10 @@ def test_model_cos_sim(model_name, validating, verbose):
     # Calculate precision/recall
     precision = true_positive / (true_positive + false_positive)
     recall = true_positive / (true_positive + false_negative)
-    confusion_matrix = metrics.confusion_matrix(true_labels, pred_labels)
+    confusion_matrix = metrics.confusion_matrix(true_labels, pred_labels, normalize = 'true')
     disp = metrics.ConfusionMatrixDisplay(confusion_matrix, display_labels = ['False', 'True'])
     disp.plot()
-    plt.savefig(model_name+'_confusion_matrix.png')
+    plt.savefig(model_name+'_confusion_matrix_normalized_true.png')
 
     print('Dataset info:')
     print('Total valid and invalid messages:', count_authentic, count_fake)
@@ -449,10 +449,10 @@ def main():
 
     #train_model(MODEL_NAME)
 
-    test_model_PS('twitch_chatter_v1', validating=True)
-    # for model in MODELS:
-    #     print("Testing model ", model)
-    #     test_model_cos_sim(model, validating=True, verbose = False)
+    #test_model_PS('twitch_chatter_v1', validating=True)
+    for model in MODELS:
+        print("Testing model ", model)
+        test_model_cos_sim(model, validating=True, verbose = False)
 
     
     # # Test on AdinRoss chat
