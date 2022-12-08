@@ -107,21 +107,38 @@ def csv_to_inputexample():
         
     return train_examples
 
-def train_power_spherical(samples):
+def train_power_spherical(samples, learning_rate, eps,  mu_init=None, k_init=None):
     d = samples.size(dim=1)
-    mu = torch.tensor([1.] + [0.] * (d - 1), requires_grad=True)
-    k = torch.tensor(1., requires_grad=True)
+    # d = 300
+    if torch.cuda.is_available():
+        use_device = 'cuda'
+    else:
+        use_device = 'cpu'
+
+    if mu_init is None:
+        mu = torch.tensor([1.] + [0.] * (d - 1), requires_grad=True, device=torch.device(use_device))
+    else:
+        mu = torch.tensor(mu_init.tolist(), requires_grad=True, device=torch.device(use_device))
+
+    if k_init is None:
+        k = torch.tensor(1., requires_grad=True, device=torch.device(use_device))
+    else:
+        k = torch.tensor(k_init.item(), requires_grad=True, device=torch.device(use_device))
+
+
+
     dist = PowerSpherical(mu, k)
 
     def loss(x):
-        return -torch.sum(dist.log_prob(x))
+        return -torch.sum(dist.log_prob(x), dtype=torch.float32)
 
-    learning_rate = 0.01
-    n_iters = 50
+    l_prev = None
+    l = None
+    n_iter = 0
+    n_iters = 500
 
-    l = loss(samples)
-
-    for epoch in range(n_iters):
+    while l_prev is None or abs(l.item() - l_prev.item()) >= eps:
+    #for epoch in range(n_iters):
         l_prev = l
         l = loss(samples)
         l.backward()
@@ -134,7 +151,14 @@ def train_power_spherical(samples):
         k.grad.zero_()
         mu.grad.zero_()
 
-        dist_new = PowerSpherical(mu, k)
+        dist = PowerSpherical(mu, k)
+
+        # if l_prev is not None:
+        #     print('iter ', n_iter, 'k = ', k, 'loss=', l.item(), 'loss diff= ', abs(l.item() - l_prev.item()))
+
+        n_iter += 1
+
+    #print('done after ', n_iter, ' iterations')
 
     return mu, k
 
@@ -180,7 +204,15 @@ def test_model_PS(model_name, validating):
 
     model = SentenceTransformer("./trained_models/" + model_name)
 
-    CONTEXT_SIZE = 20
+    CONTEXT_SIZE = 100
+    learning_rate = 0.01
+    eps = 0.5
+    prob_fake_prior = 0.1
+
+    count_correct_real = 0
+    count_real = 0
+    count_correct_fake = 0
+    count_fake = 0
 
     encoding_dict = {}
 
@@ -194,7 +226,7 @@ def test_model_PS(model_name, validating):
         streamer_df = pd.read_csv(path2csv, keep_default_na=False)
 
         total_messages = streamer_df['text'].tolist()
-        total_messages = total_messages[-500:]
+        total_messages = total_messages[-5000:]
         streamer_encodings = model.encode(total_messages, convert_to_tensor=True)
 
         # Store in dictionary
@@ -209,10 +241,62 @@ def test_model_PS(model_name, validating):
             all_encodings = torch.cat((all_encodings, streamer_encodings))
         else:
             all_encodings = streamer_encodings
-    mu, k = train_power_spherical(all_encodings)
+    mu_all, k_all = train_power_spherical(all_encodings, learning_rate=learning_rate, eps=eps)
+    dist_all = PowerSpherical(mu_all, k_all)
 
-    print('mu: ', mu)
-    print('k: ', k)
+    mu_prev = mu_all
+    k_prev = k_all
+
+    # run tests
+    for streamer_ind in range(len(STREAMERS)):
+        streamer_name = STREAMERS[streamer_ind]
+        print('Running tests on ' + streamer_name)
+        streamer_encodings = encoding_dict[streamer_name]
+
+        for i in range(CONTEXT_SIZE, len(streamer_encodings) - CONTEXT_SIZE):  # starts at CONTEXT_SIZE ends at len - CONTEXT_SIZE
+            if i % 100 == 0:
+                print('predicting message ', i, '/', len(streamer_encodings) - 2*CONTEXT_SIZE)
+
+            adversarial_bool = np.random.rand() < prob_fake_prior
+            encoded_context = torch.cat((streamer_encodings[i - CONTEXT_SIZE:i], streamer_encodings[i + 1:i + CONTEXT_SIZE]))
+            encoded_message = streamer_encodings[i]
+
+            if adversarial_bool:
+                # Pick another random streamer
+                adv_streamer_ind = np.random.choice([i for i in range(len(STREAMERS)) if i!=streamer_ind]) #Picks streamer index, excluding current streamer
+                adv_streamer_encodings = encoding_dict[STREAMERS[adv_streamer_ind]]
+                encoded_message = adv_streamer_encodings[np.random.choice(range(0, len(adv_streamer_encodings)))]
+
+            # train on context
+            mu, k = train_power_spherical(encoded_context, learning_rate=learning_rate, eps=eps, mu_init=mu_prev, k_init=k_prev)
+            mu_prev = mu
+            k_prev = k
+            dist_context = PowerSpherical(mu, k)
+            log_prob_given_real = dist_context.log_prob(encoded_message)
+            log_prob_given_fake = dist_all.log_prob(encoded_message)
+            m = torch.max(torch.tensor((log_prob_given_real, log_prob_given_fake)))
+
+            prob_real = torch.exp(log_prob_given_real - m) * (1-prob_fake_prior) / \
+                        (torch.exp(log_prob_given_real - m) * (1-prob_fake_prior) + torch.exp(log_prob_given_fake - m) * prob_fake_prior)
+            if prob_real > 0.5:
+                prediction = 1
+            else:
+                prediction = 0
+
+            if adversarial_bool:
+                count_fake += 1
+                if prediction == 0:
+                    count_correct_fake += 1
+            else:
+                count_real += 1
+                if prediction == 1:
+                    count_correct_real += 1
+
+    print('accuracy detecting fake messages: ', count_correct_fake / count_fake)
+    print('accuracy detecting real messages: ', count_correct_real / count_real)
+    print('total accuracy: ', (count_correct_fake + count_correct_real) / (count_fake + count_real))
+
+
 
 def test_model_cos_sim(model_name, validating, verbose):
     # load trained model
@@ -365,9 +449,10 @@ def main():
 
     #train_model(MODEL_NAME)
 
-    for model in MODELS:
-        print("Testing model ", model)
-        test_model_cos_sim(model, validating=True, verbose = False)
+    test_model_PS('twitch_chatter_v1', validating=True)
+    # for model in MODELS:
+    #     print("Testing model ", model)
+    #     test_model_cos_sim(model, validating=True, verbose = False)
 
     
     # # Test on AdinRoss chat
