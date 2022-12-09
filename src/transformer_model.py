@@ -513,8 +513,8 @@ def main():
     print('Using device:', device)
     SEED = 0
     np.random.seed(SEED)
-    #MODEL_NAME = 'default_paraphrase'
-    MODELS = ['default_minilm','default_paraphrase', 'twitch_chatter_v1', 'twitch_chatter_v1_paraphrase']
+    MODEL_NAME = 'twitch_chatter_v1_chrono'
+    #MODELS = ['default_minilm','default_paraphrase', 'twitch_chatter_v1', 'twitch_chatter_v1_paraphrase']
 
     train_model(MODEL_NAME)
 
@@ -525,7 +525,7 @@ def main():
     #     test_model_cos_sim(model, validating=True, verbose = True, timestamp_context=True)
     #     test_model_cos_sim(model, validating=True, verbose = False)
 
-    visualize_embeddings('twitch_chatter_v1')
+    #visualize_embeddings('twitch_chatter_v1')
 
 
 
