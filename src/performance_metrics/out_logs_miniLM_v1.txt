@@ -1,0 +1,133 @@
+Testing model  twitch_chatter_v1_chrono
+Testing cosine score thresholds:
+Current score threshold: 0.5
+Dataset info:
+Total valid and invalid messages: 160615 161013
+average cosine score for authentic messages: tensor([[0.7090]])
+average cosine score for fake messages: tensor([[0.4289]])
+
+Testing info:
+Percent of accurate predictions when valid: 0.8740279550477851
+Percent of accurate predictions when invalid: 0.6819635681590928
+Total accuracy: 0.7778769261382715
+True positive, false positive, true negative, false negative: 140382 51208 109805 20233
+Precision: 0.7327209144527376
+Recall: 0.8740279550477851
+
+Current score threshold: 0.55
+Dataset info:
+Total valid and invalid messages: 160709 160919
+average cosine score for authentic messages: tensor([[0.7094]])
+average cosine score for fake messages: tensor([[0.4286]])
+
+Testing info:
+Percent of accurate predictions when valid: 0.8097430759944994
+Percent of accurate predictions when invalid: 0.7852646362455645
+Total accuracy: 0.7974958647878916
+True positive, false positive, true negative, false negative: 130133 34555 126364 30576
+Precision: 0.7901790051491305
+Recall: 0.8097430759944994
+
+Current score threshold: 0.6
+Dataset info:
+Total valid and invalid messages: 161355 160273
+average cosine score for authentic messages: tensor([[0.7094]])
+average cosine score for fake messages: tensor([[0.4286]])
+
+Testing info:
+Percent of accurate predictions when valid: 0.7344860710854947
+Percent of accurate predictions when invalid: 0.8592339321033486
+Total accuracy: 0.7966501672739935
+True positive, false positive, true negative, false negative: 118513 22561 137712 42842
+Precision: 0.8400768391057176
+Recall: 0.7344860710854947
+
+Best score threshold was 0.55 with total accuracy of 0.7974958647878916
+Testing for best context window size
+Current window size 5
+Dataset info:
+Total valid and invalid messages: 161218 161010
+average cosine score for authentic messages: tensor([[0.6844]])
+average cosine score for fake messages: tensor([[0.4119]])
+
+Testing info:
+Percent of accurate predictions when valid: 0.7652371323301368
+Percent of accurate predictions when invalid: 0.8127942363828333
+Total accuracy: 0.7890003351664039
+True positive, false positive, true negative, false negative: 123370 30142 130868 37848
+Precision: 0.803650528948877
+Recall: 0.7652371323301368
+
+Current window size 10
+Dataset info:
+Total valid and invalid messages: 161511 160517
+average cosine score for authentic messages: tensor([[0.7017]])
+average cosine score for fake messages: tensor([[0.4227]])
+
+Testing info:
+Percent of accurate predictions when valid: 0.7965092160905449
+Percent of accurate predictions when invalid: 0.794588735149548
+Total accuracy: 0.7955519395828934
+True positive, false positive, true negative, false negative: 128645 32972 127545 32866
+Precision: 0.7959868083184318
+Recall: 0.7965092160905449
+
+Current window size 20
+Dataset info:
+Total valid and invalid messages: 160520 161108
+average cosine score for authentic messages: tensor([[0.7095]])
+average cosine score for fake messages: tensor([[0.4297]])
+
+Testing info:
+Percent of accurate predictions when valid: 0.8098056316969848
+Percent of accurate predictions when invalid: 0.7814571591727288
+Total accuracy: 0.7956054821097666
+True positive, false positive, true negative, false negative: 129990 35209 125899 30530
+Precision: 0.7868691699102295
+Recall: 0.8098056316969848
+
+Current window size 30
+Dataset info:
+Total valid and invalid messages: 161040 160188
+average cosine score for authentic messages: tensor([[0.7109]])
+average cosine score for fake messages: tensor([[0.4312]])
+
+Testing info:
+Percent of accurate predictions when valid: 0.8140834575260805
+Percent of accurate predictions when invalid: 0.7793467675481309
+Total accuracy: 0.7967611789756808
+True positive, false positive, true negative, false negative: 131100 35346 124842 29940
+Precision: 0.7876428391189936
+Recall: 0.8140834575260805
+
+Current window size 40
+Dataset info:
+Total valid and invalid messages: 160263 160565
+average cosine score for authentic messages: tensor([[0.7124]])
+average cosine score for fake messages: tensor([[0.4328]])
+
+Testing info:
+Percent of accurate predictions when valid: 0.8165328241702701
+Percent of accurate predictions when invalid: 0.7763460280883131
+Total accuracy: 0.7964205119253931
+True positive, false positive, true negative, false negative: 130860 35911 124654 29403
+Precision: 0.7846687973328696
+Recall: 0.8165328241702701
+
+Best window size was 30 with total accuracy of 0.7967611789756808
+Optimal hyperparameters of score threshold and context window size hypothesized to be approximately 0.55 and 30 respectively
+Running final test on the train set
+Dataset info:
+Total valid and invalid messages: 82907 81997
+average cosine score for authentic messages: tensor([[0.7011]])
+average cosine score for fake messages: tensor([[0.4340]])
+
+Testing info:
+Percent of accurate predictions when valid: 0.8086530691015233
+Percent of accurate predictions when invalid: 0.76706464870666
+Total accuracy: 0.7879736088875952
+True positive, false positive, true negative, false negative: 67043 19100 62897 15864
+Precision: 0.7782756579176485
+Recall: 0.8086530691015233
+
+Final total accuracy on the train set is 0.7879736088875952

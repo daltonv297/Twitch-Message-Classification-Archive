@@ -1,0 +1,60 @@
+window size: 5
+accuracy detecting fake messages: 0.37811170966827334
+accuracy detecting real messages: 0.7854832302366495
+total accuracy: 0.5817165872475607
+
+window size: 10
+accuracy detecting fake messages: 0.32035383127595424
+accuracy detecting real messages: 0.8062240427831826
+total accuracy: 0.5632751166230515
+
+window size: 20
+accuracy detecting fake messages: 0.27871292797435016
+accuracy detecting real messages: 0.8211527487159977
+total accuracy: 0.550377257830958
+
+window size: 30
+accuracy detecting fake messages: 0.2523226260392585
+accuracy detecting real messages: 0.8296854116666427
+total accuracy: 0.540883755674309
+
+window size: 40
+accuracy detecting fake messages: 0.23463893703061814
+accuracy detecting real messages: 0.8358026118109326
+total accuracy: 0.5351860411370465
+
+window size: 50
+accuracy detecting fake messages: 0.222101904669825
+accuracy detecting real messages: 0.8392043140069443
+total accuracy: 0.5301690746407406
+
+window size: 60
+accuracy detecting fake messages: 0.21279625589180726
+accuracy detecting real messages: 0.8421638356622877
+total accuracy: 0.5267287722461518
+
+window size: 70
+accuracy detecting fake messages: 0.20545034980403648
+accuracy detecting real messages: 0.8446256519048881
+total accuracy: 0.5241588035010523
+
+window size: 80
+accuracy detecting fake messages: 0.20017704337562703
+accuracy detecting real messages: 0.8466112006313921
+total accuracy: 0.5229059267772123
+
+window size: 90
+accuracy detecting fake messages: 0.19613176006698457
+accuracy detecting real messages: 0.8478299675119896
+total accuracy: 0.5216564276776665
+
+window size: 100
+accuracy detecting fake messages: 0.19261362710870522
+accuracy detecting real messages: 0.8491004346856281
+total accuracy: 0.5205305607791558
+
+window size: 110
+accuracy detecting fake messages: 0.18962160755483712
+accuracy detecting real messages: 0.8500285975175348
+total accuracy: 0.5194106284308395
+

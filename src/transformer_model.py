@@ -46,20 +46,21 @@ def csv_to_inputexample():
 def train_power_spherical(samples, learning_rate, eps,  mu_init=None, k_init=None):
     d = samples.size(dim=1)
     # d = 300
-    if torch.cuda.is_available():
-        use_device = 'cuda'
-    else:
-        use_device = 'cpu'
+    # if torch.cuda.is_available():
+    #     use_device = 'cuda'
+    # else:
+    #     use_device = 'cpu'
+    use_device = 'cpu'
 
     if mu_init is None:
         mu = torch.tensor([1.] + [0.] * (d - 1), requires_grad=True, device=torch.device(use_device))
     else:
-        mu = torch.tensor(mu_init.tolist(), requires_grad=True, device=torch.device(use_device))
+        mu = torch.tensor(mu_init.cpu().tolist(), requires_grad=True, device=torch.device(use_device))
 
     if k_init is None:
         k = torch.tensor(1., requires_grad=True, device=torch.device(use_device))
     else:
-        k = torch.tensor(k_init.item(), requires_grad=True, device=torch.device(use_device))
+        k = torch.tensor(k_init.cpu().item(), requires_grad=True, device=torch.device(use_device))
 
 
 
@@ -71,12 +72,12 @@ def train_power_spherical(samples, learning_rate, eps,  mu_init=None, k_init=Non
     l_prev = None
     l = None
     n_iter = 0
-    n_iters = 500
+    n_iters = 100
 
     while l_prev is None or abs(l.item() - l_prev.item()) >= eps:
     #for epoch in range(n_iters):
         l_prev = l
-        l = loss(samples)
+        l = loss(samples.cpu())
         l.backward()
 
         with torch.no_grad():
@@ -139,10 +140,10 @@ def test_model_PS(model_name, validating):
 
     model = SentenceTransformer("./trained_models/" + model_name)
 
-    CONTEXT_SIZE = 100
-    learning_rate = 0.01
+    context_size_list = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110]
+    learning_rate = 0.001
     eps = 0.5
-    prob_fake_prior = 0.1
+    prob_fake_prior = 0.5
 
     count_correct_real = 0
     count_real = 0
@@ -161,7 +162,7 @@ def test_model_PS(model_name, validating):
         streamer_df = pd.read_csv(path2csv, keep_default_na=False)
 
         total_messages = streamer_df['text'].tolist()
-        total_messages = total_messages[-5000:]
+        total_messages = total_messages[-2000:]
         streamer_encodings = model.encode(total_messages, convert_to_tensor=True)
 
         # Store in dictionary
@@ -183,53 +184,57 @@ def test_model_PS(model_name, validating):
     k_prev = k_all
 
     # run tests
-    for streamer_ind in range(len(STREAMERS)):
-        streamer_name = STREAMERS[streamer_ind]
-        print('Running tests on ' + streamer_name)
-        streamer_encodings = encoding_dict[streamer_name]
+    with open('performance_metrics/out_logs_PS_miniLM.txt', 'w') as f:
+        for CONTEXT_SIZE in context_size_list:
+            print('using context size ', CONTEXT_SIZE)
+            for streamer_ind in range(len(STREAMERS)):
+                streamer_name = STREAMERS[streamer_ind]
+                print('Running tests on ' + streamer_name)
+                streamer_encodings = encoding_dict[streamer_name]
 
-        for i in range(CONTEXT_SIZE, len(streamer_encodings) - CONTEXT_SIZE):  # starts at CONTEXT_SIZE ends at len - CONTEXT_SIZE
-            if i % 100 == 0:
-                print('predicting message ', i, '/', len(streamer_encodings) - 2*CONTEXT_SIZE)
+                for i in range(CONTEXT_SIZE, len(streamer_encodings) - CONTEXT_SIZE):  # starts at CONTEXT_SIZE ends at len - CONTEXT_SIZE
+                    # if i % 100 == 0:
+                        #print('predicting message ', i, '/', len(streamer_encodings) - 2*CONTEXT_SIZE)
 
-            adversarial_bool = np.random.rand() < prob_fake_prior
-            encoded_context = torch.cat((streamer_encodings[i - CONTEXT_SIZE:i], streamer_encodings[i + 1:i + CONTEXT_SIZE]))
-            encoded_message = streamer_encodings[i]
+                    adversarial_bool = np.random.rand() < prob_fake_prior
+                    encoded_context = torch.cat((streamer_encodings[i - CONTEXT_SIZE:i], streamer_encodings[i + 1:i + CONTEXT_SIZE]))
+                    encoded_message = streamer_encodings[i]
 
-            if adversarial_bool:
-                # Pick another random streamer
-                adv_streamer_ind = np.random.choice([i for i in range(len(STREAMERS)) if i!=streamer_ind]) #Picks streamer index, excluding current streamer
-                adv_streamer_encodings = encoding_dict[STREAMERS[adv_streamer_ind]]
-                encoded_message = adv_streamer_encodings[np.random.choice(range(0, len(adv_streamer_encodings)))]
+                    if adversarial_bool:
+                        # Pick another random streamer
+                        adv_streamer_ind = np.random.choice([i for i in range(len(STREAMERS)) if i!=streamer_ind]) #Picks streamer index, excluding current streamer
+                        adv_streamer_encodings = encoding_dict[STREAMERS[adv_streamer_ind]]
+                        encoded_message = adv_streamer_encodings[np.random.choice(range(0, len(adv_streamer_encodings)))]
 
-            # train on context
-            mu, k = train_power_spherical(encoded_context, learning_rate=learning_rate, eps=eps, mu_init=mu_prev, k_init=k_prev)
-            mu_prev = mu
-            k_prev = k
-            dist_context = PowerSpherical(mu, k)
-            log_prob_given_real = dist_context.log_prob(encoded_message)
-            log_prob_given_fake = dist_all.log_prob(encoded_message)
-            m = torch.max(torch.tensor((log_prob_given_real, log_prob_given_fake)))
+                    # train on context
+                    mu, k = train_power_spherical(encoded_context, learning_rate=learning_rate, eps=eps, mu_init=mu_prev, k_init=k_prev)
+                    mu_prev = mu
+                    k_prev = k
+                    dist_context = PowerSpherical(mu, k)
+                    log_prob_given_real = dist_context.log_prob(encoded_message.cpu())
+                    log_prob_given_fake = dist_all.log_prob(encoded_message.cpu())
+                    m = torch.max(torch.tensor((log_prob_given_real, log_prob_given_fake)))
 
-            prob_real = torch.exp(log_prob_given_real - m) * (1-prob_fake_prior) / \
-                        (torch.exp(log_prob_given_real - m) * (1-prob_fake_prior) + torch.exp(log_prob_given_fake - m) * prob_fake_prior)
-            if prob_real > 0.5:
-                prediction = 1
-            else:
-                prediction = 0
+                    prob_real = torch.exp(log_prob_given_real - m) * (1-prob_fake_prior) / (torch.exp(log_prob_given_real - m) * (1-prob_fake_prior) + torch.exp(log_prob_given_fake - m) * prob_fake_prior)
+                    if prob_real > 0.5:
+                        prediction = 1
+                    else:
+                        prediction = 0
 
-            if adversarial_bool:
-                count_fake += 1
-                if prediction == 0:
-                    count_correct_fake += 1
-            else:
-                count_real += 1
-                if prediction == 1:
-                    count_correct_real += 1
+                    if adversarial_bool:
+                        count_fake += 1
+                        if prediction == 0:
+                            count_correct_fake += 1
+                    else:
+                        count_real += 1
+                        if prediction == 1:
+                            count_correct_real += 1
 
-    print('accuracy detecting fake messages: ', count_correct_fake / count_fake)
-    print('accuracy detecting real messages: ', count_correct_real / count_real)
-    print('total accuracy: ', (count_correct_fake + count_correct_real) / (count_fake + count_real))
+
+            f.write('window size: ' + str(CONTEXT_SIZE) + '\n')
+            f.write('accuracy detecting fake messages: ' + str(count_correct_fake / count_fake) + '\n')
+            f.write('accuracy detecting real messages: ' + str(count_correct_real / count_real) + '\n')
+            f.write('total accuracy: ' + str((count_correct_fake + count_correct_real) / (count_fake + count_real)) + '\n\n')
 
 def test_model_cos_sim(model_name, validating, verbose, timestamp_context=5, cos_score_threshold=0.65, adversarial_ratio = 0.5, cw = 20):
     # load trained model
@@ -521,9 +526,9 @@ def main():
 
     #For writing to file
     # stdoutOrigin = sys.stdout
-
+    # sys.stdout = open('performance_metrics/out_logs_miniLM_v1.txt', 'w+')
     #MODELS = ['default_minilm','default_paraphrase', 'twitch_chatter_v1_paraphrase_chrono']
-    MODELS = ['twitch_chatter_v1_paraphrase_chrono']
+    # MODELS = ['twitch_chatter_v1_chrono']
     #Hyper params
     score_thresholds = [0.5, 0.55, 0.6, 0.65, 0.7]
     window_sizes = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110]
@@ -535,56 +540,58 @@ def main():
 
     #train_model(MODEL_NAME)
 
-    #for model in MODELS:
-    print("Testing model ", MODELS[0])
-    print("Testing cosine score thresholds:")
+    test_model_PS(MODEL_NAME, validating=True)
 
-    # Find best score threshold
-    cur_best_score_index = 0
-    cur_best_accuracy_per_score = 0
-    score_still_improving = True
-
-    #visualize_embeddings('twitch_chatter_v1')
-    while score_still_improving and cur_best_score_index < len(score_thresholds):
-        cur_score_threshold = score_thresholds[cur_best_score_index]
-        print("Current score threshold:", cur_score_threshold)
-        tot_accuracy = test_model_cos_sim(MODELS[0], validating = True, verbose = False, timestamp_context=False, cos_score_threshold=cur_score_threshold, adversarial_ratio=adv_ratio, cw=20)
-        if tot_accuracy > cur_best_accuracy_per_score:
-            cur_best_accuracy_per_score = tot_accuracy
-            cur_best_score_index += 1
-        else:
-            score_still_improving = False
-    # If we broke the loop because score stopped improving or index overflowed, then previous score was the best
-    best_score = score_thresholds[cur_best_score_index-1]
-    print('Best score threshold was', best_score,'with total accuracy of', cur_best_accuracy_per_score)
-
-    print('Testing for best context window size')
-
-    # Find best window context size
-    cur_best_window_index = 0
-    cur_best_accuracy_per_window = 0
-    window_still_improving = True
-
-    while window_still_improving and cur_best_window_index < len(window_sizes):
-        cur_window_size = window_sizes[cur_best_window_index]
-        print('Current window size', cur_window_size)
-        tot_accuracy = test_model_cos_sim(MODELS[0], validating = True, verbose = False, timestamp_context=False, cos_score_threshold=best_score, adversarial_ratio=adv_ratio, cw=cur_window_size)
-        if tot_accuracy > cur_best_accuracy_per_window:
-            cur_best_accuracy_per_window = tot_accuracy
-            cur_best_window_index += 1
-        else:
-            window_still_improving = False
-    # If we broke the loop because we didn't improve or index overflowed, then previous window size was the best
-    best_window = window_sizes[cur_best_window_index-1]
-    print('Best window size was', best_window, 'with total accuracy of', cur_best_accuracy_per_window)
-
-    print('Optimal hyperparameters of score threshold and context window size hypothesized to be approximately', best_score, 'and', best_window, 'respectively')
-    print('Running final test on the train set')
-    test_accuracy = test_model_cos_sim(MODELS[0], validating = False, verbose = False, timestamp_context=False, cos_score_threshold=best_score, adversarial_ratio=adv_ratio, cw=best_window)
-
-    print('Final total accuracy on the train set is', test_accuracy)
-    # visualize_embeddings('twitch_chatter_v1')
-    # sys.stdout.close()
-    # sys.stdout = stdoutOrigin
+    # for model in MODELS:
+    #     print("Testing model ", MODELS[0])
+    #     print("Testing cosine score thresholds:")
+    #
+    #     # Find best score threshold
+    #     cur_best_score_index = 0
+    #     cur_best_accuracy_per_score = 0
+    #     score_still_improving = True
+    #
+    #     #visualize_embeddings('twitch_chatter_v1')
+    #     while score_still_improving and cur_best_score_index < len(score_thresholds):
+    #         cur_score_threshold = score_thresholds[cur_best_score_index]
+    #         print("Current score threshold:", cur_score_threshold)
+    #         tot_accuracy = test_model_cos_sim(MODELS[0], validating = True, verbose = False, timestamp_context=False, cos_score_threshold=cur_score_threshold, adversarial_ratio=adv_ratio, cw=20)
+    #         if tot_accuracy > cur_best_accuracy_per_score:
+    #             cur_best_accuracy_per_score = tot_accuracy
+    #             cur_best_score_index += 1
+    #         else:
+    #             score_still_improving = False
+    #     # If we broke the loop because score stopped improving or index overflowed, then previous score was the best
+    #     best_score = score_thresholds[cur_best_score_index-1]
+    #     print('Best score threshold was', best_score,'with total accuracy of', cur_best_accuracy_per_score)
+    #
+    #     print('Testing for best context window size')
+    #
+    #     # Find best window context size
+    #     cur_best_window_index = 0
+    #     cur_best_accuracy_per_window = 0
+    #     window_still_improving = True
+    #
+    #     while window_still_improving and cur_best_window_index < len(window_sizes):
+    #         cur_window_size = window_sizes[cur_best_window_index]
+    #         print('Current window size', cur_window_size)
+    #         tot_accuracy = test_model_cos_sim(MODELS[0], validating = True, verbose = False, timestamp_context=False, cos_score_threshold=best_score, adversarial_ratio=adv_ratio, cw=cur_window_size)
+    #         if tot_accuracy > cur_best_accuracy_per_window:
+    #             cur_best_accuracy_per_window = tot_accuracy
+    #             cur_best_window_index += 1
+    #         else:
+    #             window_still_improving = False
+    #     # If we broke the loop because we didn't improve or index overflowed, then previous window size was the best
+    #     best_window = window_sizes[cur_best_window_index-1]
+    #     print('Best window size was', best_window, 'with total accuracy of', cur_best_accuracy_per_window)
+    #
+    #     print('Optimal hyperparameters of score threshold and context window size hypothesized to be approximately', best_score, 'and', best_window, 'respectively')
+    #     print('Running final test on the train set')
+    #     test_accuracy = test_model_cos_sim(MODELS[0], validating = False, verbose = False, timestamp_context=False, cos_score_threshold=best_score, adversarial_ratio=adv_ratio, cw=best_window)
+    #
+    #     print('Final total accuracy on the train set is', test_accuracy)
+    #     # visualize_embeddings('twitch_chatter_v1')
+    #     sys.stdout.close()
+    #     sys.stdout = stdoutOrigin
 if __name__ == "__main__":
     main()
