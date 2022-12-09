@@ -5,6 +5,7 @@ import pandas as pd
 import os
 import sys
 import datetime
+#from sklearn.model_selection import train_test_split
 
 STREAMERS = ['AdinRoss', 'Alinity', 'Amouranth', 'HasanAbi', 'Jerma985', 'KaiCenat', 'LIRIK', 'loltyler1', 'Loserfruit', 'moistcr1tikal', 'NICKMERCS', 'Pestily', 'pokimane', 'shroud', 'sodapoppin', 'summit1g', 'tarik',
 'Tfue', 'Wirtual', 'xQc']
@@ -19,13 +20,13 @@ def create_input_example_pairs(list_of_dfs):
             list_of_dfs: a list of dataframes that contain chat information from different streamers
     """
     save_path = 'input_example_pairs_chrono/'
-    list_of_pairs = []
+    list_of_pairs = [] # TODO: Remove line
     # First, create input example pairs of messages that are close
     for i in range(len(STREAMERS)):
         streamer_df = list_of_dfs[i]
         list_of_other_dfs = list_of_dfs[:i] + list_of_dfs[(i + 1):]
         list_of_pairs_to_append = util.create_input_example_pairs(streamer_df, list_of_other_dfs)
-        print('Finished creating pairs for '+STREAMERS[i])
+        print('Finished creating pairs for '+ STREAMERS[i])
 
         # Save file to csv
         with open(save_path+STREAMERS[i]+ '.csv','w', encoding = "utf-8") as out:
@@ -34,9 +35,9 @@ def create_input_example_pairs(list_of_dfs):
             for row in list_of_pairs_to_append:
                 csv_out.writerow(row)
 
-        list_of_pairs.append(list_of_pairs_to_append)
+        list_of_pairs.append(list_of_pairs_to_append) # TODO: Remove line
     
-    return list_of_pairs
+    return list_of_pairs # TODO: Remove this too
 
 def save_dataframes_to_csv(list_of_all_dataframes):
     """
@@ -119,6 +120,7 @@ def messages_in_window(window):
 def main():
     args = sys.argv[1:]
 
+    # If only want to return the window statistics
     if len(args) == 2 and args[0] == '-window':
         window_size = int(args[1])
         messages_in_window(window_size)
