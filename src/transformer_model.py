@@ -107,8 +107,8 @@ def train_model(cur_model_name):
     NUM_STEPS_PER_EPOCH = (1143010 // BATCH_SIZE)+1
 
     print('Loading pre-trained model')
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    # model = SentenceTransformer('paraphrase-MiniLM-L3-v2')
+    # model = SentenceTransformer('all-MiniLM-L6-v2')
+    model = SentenceTransformer('paraphrase-MiniLM-L3-v2')
 
     # Creating scratch model
     # print("Creating model from scratch")
@@ -231,7 +231,7 @@ def test_model_PS(model_name, validating):
     print('accuracy detecting real messages: ', count_correct_real / count_real)
     print('total accuracy: ', (count_correct_fake + count_correct_real) / (count_fake + count_real))
 
-def test_model_cos_sim(model_name, validating, verbose, timestamp_context):
+def test_model_cos_sim(model_name, validating, verbose, timestamp_context=5, prob_threshold=0.65):
     # load trained model
     # iterate through list of streamers (outer loop)
     # get list of messages per streamer
@@ -246,7 +246,8 @@ def test_model_cos_sim(model_name, validating, verbose, timestamp_context):
     model = SentenceTransformer("./trained_models/"+model_name)
 
     CONTEXT_SIZE = 20
-    CONTEXT_DURATION = 5 #seconds
+    CONTEXT_DURATION = timestamp_context #seconds
+    PROBABILITY_THRESHOLD = prob_threshold
 
     # Performance tracking:
     count_authentic = 0
@@ -345,12 +346,12 @@ def test_model_cos_sim(model_name, validating, verbose, timestamp_context):
 
             cosine_score = util.cos_sim(encoded_message, avg_embedding)
             
-            if cosine_score > .5:
+            if cosine_score >= PROBABILITY_THRESHOLD:
                 prediction = 1
-            elif cosine_score < .5:
+            elif cosine_score < PROBABILITY_THRESHOLD:
                 prediction = 0
-            else:
-                prediction = np.random.choice([0, 1])
+            # else:
+            #     prediction = np.random.choice([0, 1])
                 
 
             if adversarial_bool:
@@ -387,7 +388,10 @@ def test_model_cos_sim(model_name, validating, verbose, timestamp_context):
     confusion_matrix = metrics.confusion_matrix(true_labels, pred_labels, normalize = 'true')
     disp = metrics.ConfusionMatrixDisplay(confusion_matrix, display_labels = ['False', 'True'])
     disp.plot()
-    plt.savefig('performance_metrics/'+model_name+'_cm_norm_true_cd=5sec.png')
+    if timestamp_context:
+        plt.savefig('performance_metrics/'+model_name+'_cm_norm_true_CD=',CONTEXT_DURATION,'_P=',PROBABILITY_THRESHOLD,'.png')
+    else:
+        plt.savefig('performance_metrics/'+model_name+'_cm_norm_true_CS=',CONTEXT_SIZE,'_P=',PROBABILITY_THRESHOLD,'.png')
 
     print('Dataset info:')
     print('Total valid and invalid messages:', count_authentic, count_fake)
@@ -513,21 +517,22 @@ def main():
     print('Using device:', device)
     SEED = 0
     np.random.seed(SEED)
-    #MODEL_NAME = 'default_paraphrase'
-    MODELS = ['default_minilm','default_paraphrase', 'twitch_chatter_v1', 'twitch_chatter_v1_paraphrase']
+    MODEL_NAME = 'twitch_chatter_v1_paraphrase_chrono'
+    #MODELS = ['default_minilm','default_paraphrase', 'twitch_chatter_v1_paraphrase_chrono']
+    MODELS = ['twitch_chatter_v1_paraphrase_chrono']
+    probs = [0.4, 0.45, 0.5, 0.55, 0.6, 0.65]
 
-    train_model(MODEL_NAME)
+    #train_model(MODEL_NAME)
 
     # test_model_PS('twitch_chatter_v1', validating=True)
-    #test_model_PS('twitch_chatter_v1', validating=True)
-    # for model in MODELS:
-    #     print("Testing model ", model)
-    #     test_model_cos_sim(model, validating=True, verbose = True, timestamp_context=True)
-    #     test_model_cos_sim(model, validating=True, verbose = False)
+    for model in MODELS:
+        print("Testing model ", model)
+        print("Testing prob thresholds:")
+        for prob in probs:
+            print("Current prob threshold:", prob)
+            test_model_cos_sim(model, validating=True, verbose = False, timestamp_context=False, prob_threshold = prob)
 
-    visualize_embeddings('twitch_chatter_v1')
-
-
+    # visualize_embeddings('twitch_chatter_v1')
 
 if __name__ == "__main__":
     main()
